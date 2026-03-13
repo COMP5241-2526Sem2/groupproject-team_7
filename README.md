@@ -128,3 +128,7 @@ The platform will be developed in four phases, evolving from a basic MVP to a fu
 | Phase 4 | Teacher dashboard, heatmaps & AI review briefs |
 
 ---
+<<<<<<< HEAD
+=======
+
+>>>>>>> 053a0a0 (Restore original README.md)
