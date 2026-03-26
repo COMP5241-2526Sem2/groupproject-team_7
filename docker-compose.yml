@@ -10,26 +10,18 @@ services:
       POSTGRES_DB: synclearn
     volumes:
       - pgdata:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "6379:6379"
-
-  backend:
-    build: ./backend
+  app:
+    build: .
     restart: unless-stopped
     depends_on:
       - db
-      - redis
     environment:
       DATABASE_URL: postgresql://synclearn:synclearn@db:5432/synclearn
-      REDIS_URL: redis://redis:6379/0
       SECRET_KEY: change-this-in-production
+      FLASK_ENV: production
       UPLOAD_FOLDER: /app/uploads
+      PORT: "5000"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
@@ -38,14 +30,6 @@ services:
       - uploads:/app/uploads
     ports:
       - "5000:5000"
-
-  frontend:
-    build: ./frontend
-    restart: unless-stopped
-    depends_on:
-      - backend
-    ports:
-      - "3000:80"
 
 volumes:
   pgdata:
