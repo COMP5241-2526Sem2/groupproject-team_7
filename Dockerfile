@@ -23,6 +23,6 @@ COPY --from=frontend-build /frontend/build ./static_frontend
 
 RUN mkdir -p uploads/slides uploads/videos
 
-EXPOSE 5000
+EXPOSE ${PORT:-5000}
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "1800", "run:app"]
+CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 1800 run:app
