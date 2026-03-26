@@ -1,0 +1,228 @@
+/* ===== Quiz Panel ===== */
+
+.quiz-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quiz-generate-btn {
+  padding: 5px 12px;
+  border-radius: 6px;
+  background-color: var(--accent-blue);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.quiz-generate-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.quiz-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quiz-clear-btn {
+  background: none;
+  font-size: 14px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  transition: background 0.15s;
+}
+
+.quiz-clear-btn:hover {
+  background-color: var(--hover-bg);
+}
+
+/* Body */
+.quiz-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px !important;
+}
+
+.quiz-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.quiz-empty-icon {
+  font-size: 40px;
+  margin-bottom: 12px;
+}
+
+.quiz-empty h3 {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.quiz-empty p {
+  font-size: 13px;
+  max-width: 280px;
+}
+
+/* Score banner */
+.quiz-score {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background-color: var(--bg-card);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.quiz-score.perfect {
+  background-color: rgba(76, 175, 80, 0.2);
+  color: var(--accent-green);
+}
+
+/* Quiz card */
+.quiz-card {
+  background-color: var(--bg-card);
+  border-radius: 10px;
+  padding: 14px;
+  border-left: 3px solid var(--border-color);
+  transition: border-color 0.2s;
+}
+
+.quiz-card.correct {
+  border-left-color: var(--accent-green);
+}
+
+.quiz-card.incorrect {
+  border-left-color: var(--accent-red);
+}
+
+.quiz-question {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.quiz-num {
+  display: inline-block;
+  background-color: var(--accent-blue);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  margin-right: 8px;
+}
+
+/* Options */
+.quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.quiz-option {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background-color: var(--bg-input);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border: 1px solid transparent;
+}
+
+.quiz-option:hover {
+  background-color: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.quiz-option.selected {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background-color: rgba(74, 158, 255, 0.1);
+}
+
+.quiz-option.correct {
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.quiz-option.wrong {
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+/* Submit */
+.quiz-submit-btn {
+  width: 100%;
+  padding: 8px;
+  border-radius: 6px;
+  background-color: var(--accent-blue);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transition: opacity 0.15s;
+}
+
+.quiz-submit-btn:hover {
+  opacity: 0.85;
+}
+
+/* Result */
+.quiz-result {
+  margin-top: 8px;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.quiz-result.correct {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.quiz-result.incorrect {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+.quiz-result-icon {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.quiz-explanation {
+  color: var(--text-secondary);
+}
+
+/* Wrong-answer backtracking */
+.quiz-backtrack-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.quiz-backtrack-btn:hover {
+  opacity: 0.85;
+}

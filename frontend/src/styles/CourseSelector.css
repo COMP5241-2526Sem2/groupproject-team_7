@@ -1,0 +1,59 @@
+.course-selector {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cs-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.cs-select {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  min-width: 180px;
+}
+
+.cs-btn {
+  background: var(--bg-input);
+  color: var(--accent-blue);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  transition: background 0.15s;
+}
+.cs-btn:hover {
+  background: var(--hover-bg);
+}
+
+.cs-btn-confirm {
+  background: var(--accent-blue);
+  color: #fff;
+  border: none;
+}
+.cs-btn-confirm:hover {
+  background: #3a8eef;
+}
+
+.cs-create-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cs-input {
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  width: 200px;
+}
