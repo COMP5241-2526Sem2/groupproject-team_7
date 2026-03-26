@@ -10,11 +10,11 @@ This document outlines the technologies, frameworks, libraries, and tools used i
 - **Werkzeug 3.1.3** - WSGI utility library that provides the foundation for Flask's request/response handling
 
 ### Database & ORM
-- **PostgreSQL 16** (via Docker) - Primary relational database used for production data storage
-- **SQLite** - Fallback database for local development when PostgreSQL is unavailable
+- **Supabase** - PostgreSQL-based cloud database solution used for production data storage on Vercel
+- **SQLite** - Fallback database for local development when Supabase is unavailable
 - **SQLAlchemy 3.1.1** (via Flask-SQLAlchemy) - ORM for database abstraction and query management
 - **Flask-Migrate 4.1.0** - Database migration tool that manages schema changes and versions
-- **psycopg2-binary 2.9.10** - PostgreSQL adapter for Python
+- **psycopg2-binary 2.9.10** - PostgreSQL adapter for Python (compatible with Supabase)
 
 ### API & Middleware
 - **Flask-CORS 5.0.1** - Middleware that enables Cross-Origin Resource Sharing for API endpoints
@@ -35,9 +35,13 @@ This document outlines the technologies, frameworks, libraries, and tools used i
 - **python-dotenv 1.1.0** - Environment variable management from .env files for configuration
 - **requests >= 2.31.0** - HTTP library for making external API calls
 
+### File Storage & CDN
+- **boto3 >= 1.34.0** - AWS SDK for Python to interact with S3 API
+- **AWS S3** - Object storage for slides, videos, and thumbnail images with presigned URLs for access
+
 ### Task Queue & Caching (Infrastructure)
-- **Celery** - Distributed task queue (configured but implementation details in config.py)
-- **Redis** - In-memory data store used as Celery broker and result backend for async task management
+- **Celery** - Distributed task queue for asynchronous processing of complex media file operations
+- **Vercel Redis** (or **Redis** on alternative platforms) - In-memory data store used as Celery broker and result backend for async task management
 
 ## Frontend Technologies
 
@@ -64,19 +68,18 @@ This document outlines the technologies, frameworks, libraries, and tools used i
 
 ## Deployment & DevOps
 
-### Containerization
-- **Docker** - Container platform for packaging the application with all dependencies
-  - Backend Dockerfile for Flask application
-  - Frontend Dockerfile with nginx for serving static assets
-- **Docker Compose** - Multi-container orchestration for local development (PostgreSQL + Flask app)
-
 ### Cloud Deployment
-- **Render** - Cloud platform for hosting the application (render.yaml configuration file)
-- **Nginx** - Reverse proxy and static file server used in the frontend Docker container
+- **Vercel** - Cloud platform for hosting the application with Python support via Flask
+- **Supabase** - Managed PostgreSQL database hosting with automated backups and scaling
+- **Vercel Redis** - Redis integration for Celery broker and result backend
+- **AWS S3** - Object storage service for storing slides, videos, and thumbnails
 
 ### Environment Configuration
 - Development environment variables managed through `.env` files
-- Production configuration through Render environment variables for API keys and model selection
+- Production configuration through Vercel environment variables for API keys, database, Redis, and S3 credentials
+- Supabase credentials configured as `DATABASE_URL` environment variable
+- Vercel Redis credentials configured as `REDIS_URL` environment variable
+- AWS S3 credentials configured as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`, and `AWS_S3_REGION`
 
 ## Architecture Highlights
 

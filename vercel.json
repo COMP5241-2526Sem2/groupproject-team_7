@@ -1,0 +1,29 @@
+{
+  "buildCommand": "pip install -r backend/requirements.txt && npm install",
+  "devCommand": "python backend/run.py",
+  "outputDirectory": ".",
+  "framework": "python",
+  "python": {
+    "targets": [
+      "backend/run.py"
+    ]
+  },
+  "env": {
+    "FLASK_ENV": "production",
+    "FLASK_APP": "backend/run.py"
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "backend/run.py"
+    },
+    {
+      "source": "/static/(.*)",
+      "destination": "frontend/build/static/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "frontend/build/index.html"
+    }
+  ]
+}

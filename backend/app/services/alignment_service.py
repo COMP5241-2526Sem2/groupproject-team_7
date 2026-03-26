@@ -70,9 +70,25 @@ def _cosine_similarity(a, b):
 # ---------------------------------------------------------------------------
 
 def _extract_audio(video_path):
-    """Extract audio from a video file to a temporary WAV file using ffmpeg."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    tmp.close()
+    """Extract audio from a video file to a temporary WAV file using ffmpeg.
+    
+    Args:
+        video_path: Either a local file path or an S3 key (starts with 'videos/')
+    """
+    import tempfile
+    
+    # If video is in S3, download it first
+    if video_path.startswith("videos/"):
+        from app.services.s3_service import get_s3_service
+        s3_service = get_s3_service()
+        video_path = s3_service.download_to_temp_file(video_path)
+        temp_video_path = video_path  # Mark for cleanup
+    else:
+        temp_video_path = None
+    
+    wav_tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    wav_tmp.close()
+    
     try:
         subprocess.run(
             [
@@ -82,17 +98,21 @@ def _extract_audio(video_path):
                 "-acodec", "pcm_s16le",
                 "-ar", "16000",       # 16 kHz mono — ideal for Whisper
                 "-ac", "1",
-                tmp.name,
+                wav_tmp.name,
             ],
             check=True,
             capture_output=True,
         )
-        return tmp.name
+        return wav_tmp.name
     except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         logger.error("ffmpeg audio extraction failed: %s", exc)
-        if os.path.exists(tmp.name):
-            os.unlink(tmp.name)
+        if os.path.exists(wav_tmp.name):
+            os.unlink(wav_tmp.name)
         return None
+    finally:
+        # Clean up downloaded video temp file if it was from S3
+        if temp_video_path and os.path.exists(temp_video_path):
+            os.unlink(temp_video_path)
 
 
 def _split_audio_chunks(audio_path, max_size_mb=24):

@@ -85,14 +85,15 @@ The system automatically generates a natural language summary that identifies:
 
 ### Backend Architecture
 
-**Asynchronous Processing**: Celery + Redis handle complex media file processing without impacting user experience
+**Asynchronous Processing**: Celery + Vercel Redis handle complex media file processing without impacting user experience
 
 | Layer | Technology |
-|:------|:-----------|
+|:------|:----------|
 | Frontend | React 18 |
 | Backend | Flask |
-| Database | PostgreSQL + pgvector (high-speed semantic search) |
+| Database | Supabase (PostgreSQL) |
 | AI Services | OpenAI Embeddings + GPT-4 |
+| Caching & Queue | Vercel Redis |
 
 ---
 
@@ -128,3 +129,30 @@ The platform will be developed in four phases, evolving from a basic MVP to a fu
 | Phase 4 | Teacher dashboard, heatmaps & AI review briefs |
 
 ---
+
+## Start the Program on Codespaces
+
+### Frontend
+**Install dependencies**
+```bash
+npm install
+```
+**Run the application**
+```bash
+npm start
+```
+
+### Backend
+```bash
+# Navigate to backend
+cd backend
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+python run.py
+```

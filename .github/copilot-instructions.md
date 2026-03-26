@@ -1,2 +1,6 @@
 1. Do not use docker. Make sure the project can be run on vercel.
 2. Based on the updated codes, modify /docs/tech-stack.md to reflect the changes in the tech stack.
+3. When ever modifying or implementing new features, make sure to update the documentation in /docs as well. This includes but not limited to tech-stack.md, architecture.md, and any relevant markdown files in the /docs directory.
+4. When ever modifying or implementing a function, make sure to add comments in the code to explain the purpose and functionality of the code. This will help other developers understand the code better and maintain it in the future.
+5. Never change .env file, instead, update the .env.example file with the new environment variables and their descriptions. This will ensure that sensitive information is not exposed and that other developers can easily set up their own .env file based on the example.
+6. Whenever updating codes, if the previous variable names are still relevant, keep them unchanged to avoid confusion. If new variables are added, make sure to use descriptive names that clearly indicate their purpose.
