@@ -12,7 +12,8 @@ migrate = Migrate()
 def create_app(config_name="default"):
     from config import config as config_map
 
-    app = Flask(__name__)
+    frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static_frontend")
+    app = Flask(__name__, static_folder=os.path.join(frontend_dir, "static"), static_url_path="/static")
     app.config.from_object(config_map[config_name])
 
     CORS(app, resources={r"/api/*": {"origins": "*"}})
@@ -50,17 +51,13 @@ def create_app(config_name="default"):
             "frontend_files": os.listdir(frontend_dir) if os.path.isdir(frontend_dir) else [],
         }
 
-    # Serve frontend static files
-    frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static_frontend")
+    # Serve frontend (index.html for SPA routing)
     app.logger.info(f"Frontend dir: {frontend_dir}, exists: {os.path.isdir(frontend_dir)}")
 
     @app.route("/", defaults={"path": ""})
     @app.route("/<path:path>")
     def serve_frontend(path):
         if os.path.isdir(frontend_dir):
-            file_path = os.path.join(frontend_dir, path)
-            if path and os.path.isfile(file_path):
-                return send_from_directory(frontend_dir, path)
             return send_from_directory(frontend_dir, "index.html")
         return {"message": "Frontend not found", "frontend_dir": frontend_dir}, 404
 

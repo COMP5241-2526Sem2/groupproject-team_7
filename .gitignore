@@ -24,3 +24,6 @@ uploads/
 
 # Docker
 *.log
+
+backend/static_frontend/
+backend/instance/
