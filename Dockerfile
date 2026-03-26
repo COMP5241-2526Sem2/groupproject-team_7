@@ -25,4 +25,5 @@ RUN mkdir -p uploads/slides uploads/videos
 
 EXPOSE ${PORT:-5000}
 
-CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 2 --timeout 1800 run:app
+ENV PORT=${PORT:-5000}
+CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 1800 --log-level info --access-logfile - --error-logfile - run:app
