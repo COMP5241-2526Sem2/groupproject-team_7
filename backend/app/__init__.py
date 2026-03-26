@@ -43,10 +43,15 @@ def create_app(config_name="default"):
     # Health check endpoint
     @app.route("/health")
     def health_check():
-        return {"status": "ok"}
+        return {
+            "status": "ok",
+            "frontend_dir": frontend_dir,
+            "frontend_exists": os.path.isdir(frontend_dir),
+            "frontend_files": os.listdir(frontend_dir) if os.path.isdir(frontend_dir) else [],
+        }
 
     # Serve frontend static files
-    frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static_frontend")
+    frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static_frontend")
     app.logger.info(f"Frontend dir: {frontend_dir}, exists: {os.path.isdir(frontend_dir)}")
 
     @app.route("/", defaults={"path": ""})
