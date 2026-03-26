@@ -40,16 +40,23 @@ def create_app(config_name="default"):
     app.register_blueprint(quizzes_bp, url_prefix="/api/quizzes")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
 
+    # Health check endpoint
+    @app.route("/health")
+    def health_check():
+        return {"status": "ok"}
+
     # Serve frontend static files
     frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static_frontend")
-    if os.path.isdir(frontend_dir):
+    app.logger.info(f"Frontend dir: {frontend_dir}, exists: {os.path.isdir(frontend_dir)}")
 
-        @app.route("/", defaults={"path": ""})
-        @app.route("/<path:path>")
-        def serve_frontend(path):
+    @app.route("/", defaults={"path": ""})
+    @app.route("/<path:path>")
+    def serve_frontend(path):
+        if os.path.isdir(frontend_dir):
             file_path = os.path.join(frontend_dir, path)
             if path and os.path.isfile(file_path):
                 return send_from_directory(frontend_dir, path)
             return send_from_directory(frontend_dir, "index.html")
+        return {"message": "Frontend not found", "frontend_dir": frontend_dir}, 404
 
     return app
