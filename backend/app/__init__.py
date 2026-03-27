@@ -7,10 +7,29 @@ from flask_migrate import Migrate
 
 db = SQLAlchemy()
 migrate = Migrate()
+supabase_client = None  # Will be initialized in create_app if Supabase credentials are available
 
 
 def create_app(config_name="default"):
+    """Create and configure the Flask application.
+    
+    This function initializes:
+    - Flask app instance
+    - Database connection (SQLAlchemy)
+    - Supabase client for REST API operations (if credentials provided)
+    - Database migrations (Flask-Migrate)
+    - CORS configuration
+    - API blueprints
+    - Frontend serving
+    
+    Args:
+        config_name: Configuration class name ("default", "development", "production")
+        
+    Returns:
+        Flask application instance with all components initialized
+    """
     from config import config as config_map
+    global supabase_client
 
     frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static_frontend")
     app = Flask(__name__, static_folder=os.path.join(frontend_dir, "static"), static_url_path="/static")
@@ -19,11 +38,19 @@ def create_app(config_name="default"):
     CORS(app, resources={r"/api/*": {"origins": "*"}})
     db.init_app(app)
     migrate.init_app(app, db)
+    
+    # Initialize Supabase client from config if available
+    # The Supabase client allows interaction with Supabase REST APIs and services
+    if hasattr(config_map[config_name], 'SUPABASE_CLIENT') and config_map[config_name].SUPABASE_CLIENT:
+        supabase_client = config_map[config_name].SUPABASE_CLIENT
+        app.logger.info("Supabase client initialized successfully")
+    else:
+        app.logger.warning("Supabase client not initialized - check SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY environment variables")
 
-    os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
-    os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "slides"), exist_ok=True)
-    os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "slides", "thumbnails"), exist_ok=True)
-    os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "videos"), exist_ok=True)
+    # os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+    # os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "slides"), exist_ok=True)
+    # os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "slides", "thumbnails"), exist_ok=True)
+    # os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "videos"), exist_ok=True)
 
     from app.api.courses import courses_bp
     from app.api.slides import slides_bp

@@ -25,7 +25,7 @@ from app.models.knowledge_point import KnowledgePoint
 
 logger = logging.getLogger(__name__)
 
-EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_MODEL = "openai/text-embedding-3-small"
 EMBEDDING_DIM = 1536
 
 
@@ -42,7 +42,7 @@ def _get_client():
 
 
 def _embedding_model():
-    return current_app.config.get("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+    return current_app.config.get("OPENAI_EMBEDDING_MODEL", EMBEDDING_MODEL)
 
 
 def _serialize_embedding(vec):

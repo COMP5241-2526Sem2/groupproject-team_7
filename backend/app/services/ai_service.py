@@ -22,7 +22,7 @@ def _get_client():
 
 
 def _chat_model():
-    return current_app.config.get("OPENAI_CHAT_MODEL", "gpt-4o-mini")
+    return current_app.config.get("OPENAI_CHAT_MODEL", "openai/gpt-4.1")
 
 
 def _gather_course_context(course_id, max_chars=12000):
