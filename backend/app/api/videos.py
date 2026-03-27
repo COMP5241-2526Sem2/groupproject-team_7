@@ -7,10 +7,15 @@ import shutil
 import tempfile
 from flask import Blueprint, request, jsonify, current_app
 from werkzeug.utils import secure_filename
-from app import db
-from app.models.video import Video
-from app.models.course import Course
 from app.services.s3_service import get_s3_service
+from app.services.supabase_repo import (
+    select_rows,
+    select_one_by_id,
+    insert_row,
+    update_row_by_id,
+    delete_row_by_id,
+    serialize_video,
+)
 
 videos_bp = Blueprint("videos", __name__)
 logger = logging.getLogger(__name__)
@@ -60,7 +65,7 @@ def init_chunked_upload():
     if not course_id:
         return jsonify({"error": "course_id is required"}), 400
 
-    course = db.session.get(Course, int(course_id))
+    course = select_one_by_id("courses", int(course_id), columns="id")
     if not course:
         return jsonify({"error": "Course not found"}), 404
 
@@ -150,14 +155,15 @@ def complete_chunked_upload():
             s3_service.upload_file(f, s3_key, content_type="video/mp4")
 
         # Create video record with S3 key
-        video = Video(
-            course_id=meta["course_id"],
-            filename=unique_filename,
-            original_filename=original_filename,
-            file_path=s3_key,  # Store S3 key, not local path
+        video = insert_row(
+            "videos",
+            {
+                "course_id": meta["course_id"],
+                "filename": unique_filename,
+                "original_filename": original_filename,
+                "file_path": s3_key,
+            },
         )
-        db.session.add(video)
-        db.session.commit()
 
         # Extract video duration using ffprobe on temp file
         try:
@@ -167,12 +173,11 @@ def complete_chunked_upload():
                 capture_output=True, text=True,
             )
             if result.returncode == 0 and result.stdout.strip():
-                video.duration = float(result.stdout.strip())
-                db.session.commit()
+                video = update_row_by_id("videos", video["id"], {"duration": float(result.stdout.strip())})
         except Exception as e:
             logger.warning("Could not extract video duration: %s", e)
 
-        return jsonify(video.to_dict()), 201
+        return jsonify(serialize_video(video)), 201
     finally:
         # Clean up temp file
         if os.path.exists(temp_video_path):
@@ -181,29 +186,34 @@ def complete_chunked_upload():
 
 @videos_bp.route("/course/<int:course_id>", methods=["GET"])
 def get_videos_by_course(course_id):
-    videos = Video.query.filter_by(course_id=course_id).order_by(Video.created_at.desc()).all()
-    return jsonify([v.to_dict() for v in videos])
+    videos = select_rows(
+        "videos",
+        filters=[("eq", "course_id", course_id)],
+        order_by="created_at",
+        ascending=False,
+    )
+    return jsonify([serialize_video(v) for v in videos])
 
 
 @videos_bp.route("/<int:video_id>", methods=["GET"])
 def get_video(video_id):
-    video = db.session.get(Video, video_id)
+    video = select_one_by_id("videos", video_id)
     if not video:
         return jsonify({"error": "Video not found"}), 404
-    return jsonify(video.to_dict())
+    return jsonify(serialize_video(video))
 
 
 @videos_bp.route("/stream/<int:video_id>", methods=["GET"])
 def get_video_stream_url(video_id):
     """Get presigned URL for streaming/downloading video from S3."""
-    video = db.session.get(Video, video_id)
+    video = select_one_by_id("videos", video_id)
     if not video:
         return jsonify({"error": "Video not found"}), 404
     
     try:
         s3_service = get_s3_service()
-        presigned_url = s3_service.generate_presigned_url(video.file_path, expiration=3600)
-        return jsonify({"url": presigned_url, "original_filename": video.original_filename})
+        presigned_url = s3_service.generate_presigned_url(video.get("file_path"), expiration=3600)
+        return jsonify({"url": presigned_url, "original_filename": video.get("original_filename")})
     except Exception as e:
         logger.error(f"Failed to generate presigned URL: {e}")
         return jsonify({"error": "Failed to generate stream URL"}), 500
@@ -212,19 +222,18 @@ def get_video_stream_url(video_id):
 @videos_bp.route("/<int:video_id>", methods=["DELETE"])
 def delete_video(video_id):
     """Delete a video from S3."""
-    video = db.session.get(Video, video_id)
+    video = select_one_by_id("videos", video_id)
     if not video:
         return jsonify({"error": "Video not found"}), 404
 
     try:
         s3_service = get_s3_service()
-        s3_service.delete_file(video.file_path)
+        s3_service.delete_file(video.get("file_path"))
     except Exception as e:
         logger.error(f"Failed to delete video from S3: {e}")
         return jsonify({"error": "Failed to delete video"}), 500
 
-    db.session.delete(video)
-    db.session.commit()
+    delete_row_by_id("videos", video_id)
     return jsonify({"message": "Video deleted"})
 
 
@@ -236,7 +245,7 @@ def transcribe(video_id):
     """
     import threading
 
-    video = db.session.get(Video, video_id)
+    video = select_one_by_id("videos", video_id, columns="id")
     if not video:
         return jsonify({"error": "Video not found"}), 404
 
@@ -297,7 +306,7 @@ def get_transcript(video_id):
     """Get the transcript segments for a video."""
     from app.services.alignment_service import get_video_transcript
 
-    video = db.session.get(Video, video_id)
+    video = select_one_by_id("videos", video_id, columns="id")
     if not video:
         return jsonify({"error": "Video not found"}), 404
 

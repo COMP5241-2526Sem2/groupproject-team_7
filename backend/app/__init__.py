@@ -2,11 +2,7 @@ import os
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from flask_migrate import Migrate
 
-db = SQLAlchemy()
-migrate = Migrate()
 supabase_client = None  # Will be initialized in create_app if Supabase credentials are available
 
 
@@ -15,9 +11,7 @@ def create_app(config_name="default"):
     
     This function initializes:
     - Flask app instance
-    - Database connection (SQLAlchemy)
-    - Supabase client for REST API operations (if credentials provided)
-    - Database migrations (Flask-Migrate)
+    - Supabase client for database REST API operations
     - CORS configuration
     - API blueprints
     - Frontend serving
@@ -36,16 +30,13 @@ def create_app(config_name="default"):
     app.config.from_object(config_map[config_name])
 
     CORS(app, resources={r"/api/*": {"origins": "*"}})
-    db.init_app(app)
-    migrate.init_app(app, db)
     
-    # Initialize Supabase client from config if available
-    # The Supabase client allows interaction with Supabase REST APIs and services
+    # Initialize Supabase client from config so all data access goes through Supabase.
     if hasattr(config_map[config_name], 'SUPABASE_CLIENT') and config_map[config_name].SUPABASE_CLIENT:
         supabase_client = config_map[config_name].SUPABASE_CLIENT
         app.logger.info("Supabase client initialized successfully")
     else:
-        app.logger.warning("Supabase client not initialized - check SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY environment variables")
+        app.logger.warning("Supabase client not initialized - check SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY")
 
     # os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
     # os.makedirs(os.path.join(app.config["UPLOAD_FOLDER"], "slides"), exist_ok=True)

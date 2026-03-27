@@ -17,11 +17,16 @@ import tempfile
 from flask import current_app
 from openai import OpenAI
 
-from app import db
-from app.models.video import Video
-from app.models.video_transcript import VideoTranscript
-from app.models.slide import Slide, SlidePage
-from app.models.knowledge_point import KnowledgePoint
+from app.services.supabase_repo import (
+    select_rows,
+    select_one_by_id,
+    insert_row,
+    update_row_by_id,
+    delete_rows_by_eq,
+    bytea_to_hex,
+    hex_to_bytea,
+    serialize_video_transcript,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -169,15 +174,14 @@ def transcribe_video(video_id):
     """
     from faster_whisper import WhisperModel
 
-    video = db.session.get(Video, video_id)
+    video = select_one_by_id("videos", video_id)
     if not video:
         return {"error": "Video not found"}
 
     # Remove old transcripts
-    VideoTranscript.query.filter_by(video_id=video_id).delete()
-    db.session.flush()
+    delete_rows_by_eq("video_transcripts", "video_id", video_id)
 
-    audio_path = _extract_audio(video.file_path)
+    audio_path = _extract_audio(video.get("file_path"))
     if audio_path is None:
         return {"error": "Failed to extract audio from video (is ffmpeg installed?)"}
 
@@ -193,33 +197,33 @@ def transcribe_video(video_id):
             text = seg.text.strip()
             if not text:
                 continue
-            ts = VideoTranscript(
-                video_id=video_id,
-                segment_index=seg_index,
-                start_time=round(seg.start, 2),
-                end_time=round(seg.end, 2),
-                text=text,
+            ts = insert_row(
+                "video_transcripts",
+                {
+                    "video_id": video_id,
+                    "segment_index": seg_index,
+                    "start_time": round(seg.start, 2),
+                    "end_time": round(seg.end, 2),
+                    "text": text,
+                },
             )
-            db.session.add(ts)
             segments_created.append(ts)
             seg_index += 1
 
         # Update video duration from the last segment if we got any
         if segments_created:
-            video.duration = segments_created[-1].end_time
+            update_row_by_id("videos", video_id, {"duration": segments_created[-1].get("end_time")})
 
-        video.processed = True
-        db.session.commit()
+        update_row_by_id("videos", video_id, {"processed": True})
 
         # Generate embeddings for transcript segments (uses OpenAI embeddings API)
         client = _get_client()
         if client:
             _embed_transcripts(video_id, client)
 
-        return [t.to_dict() for t in segments_created]
+        return [serialize_video_transcript(t) for t in segments_created]
 
     except Exception as exc:
-        db.session.rollback()
         logger.error("ASR transcription failed: %s", exc)
         return {"error": f"Transcription failed: {type(exc).__name__}: {exc}"}
     finally:
@@ -254,13 +258,15 @@ def _embed_transcripts(video_id, client=None):
         return
 
     segments = (
-        VideoTranscript.query
-        .filter_by(video_id=video_id)
-        .order_by(VideoTranscript.segment_index)
-        .all()
+        select_rows(
+            "video_transcripts",
+            filters=[("eq", "video_id", video_id)],
+            order_by="segment_index",
+            ascending=True,
+        )
     )
-    texts = [s.text for s in segments if s.text.strip()]
-    valid_segments = [s for s in segments if s.text.strip()]
+    texts = [s.get("text", "") for s in segments if (s.get("text") or "").strip()]
+    valid_segments = [s for s in segments if (s.get("text") or "").strip()]
 
     if not texts:
         return
@@ -268,11 +274,13 @@ def _embed_transcripts(video_id, client=None):
     try:
         embeddings = _get_embeddings(texts, client)
         for seg, emb in zip(valid_segments, embeddings):
-            seg.embedding = _serialize_embedding(emb)
-        db.session.commit()
+            update_row_by_id(
+                "video_transcripts",
+                seg["id"],
+                {"embedding": bytea_to_hex(_serialize_embedding(emb))},
+            )
     except Exception as exc:
         logger.error("Embedding generation failed: %s", exc)
-        db.session.rollback()
 
 
 def embed_slide_pages(slide_id, client=None):
@@ -282,13 +290,18 @@ def embed_slide_pages(slide_id, client=None):
     if client is None:
         return
 
-    slide = db.session.get(Slide, slide_id)
+    slide = select_one_by_id("slides", slide_id, columns="id")
     if not slide:
         return
 
-    pages = sorted(slide.pages, key=lambda p: p.page_number)
-    texts = [p.content_text for p in pages if (p.content_text or "").strip()]
-    valid_pages = [p for p in pages if (p.content_text or "").strip()]
+    pages = select_rows(
+        "slide_pages",
+        filters=[("eq", "slide_id", slide_id)],
+        order_by="page_number",
+        ascending=True,
+    )
+    texts = [p.get("content_text") for p in pages if (p.get("content_text") or "").strip()]
+    valid_pages = [p for p in pages if (p.get("content_text") or "").strip()]
 
     if not texts:
         return
@@ -296,11 +309,13 @@ def embed_slide_pages(slide_id, client=None):
     try:
         embeddings = _get_embeddings(texts, client)
         for page, emb in zip(valid_pages, embeddings):
-            page.embedding = _serialize_embedding(emb)
-        db.session.commit()
+            update_row_by_id(
+                "slide_pages",
+                page["id"],
+                {"embedding": bytea_to_hex(_serialize_embedding(emb))},
+            )
     except Exception as exc:
         logger.error("Slide embedding failed: %s", exc)
-        db.session.rollback()
 
 
 # ---------------------------------------------------------------------------
@@ -318,11 +333,12 @@ def align_knowledge_point(kp_text, video_id, client=None):
         return None, 0.0
 
     segments = (
-        VideoTranscript.query
-        .filter_by(video_id=video_id)
-        .filter(VideoTranscript.embedding.isnot(None))
-        .order_by(VideoTranscript.segment_index)
-        .all()
+        select_rows(
+            "video_transcripts",
+            filters=[("eq", "video_id", video_id), ("not.is", "embedding", None)],
+            order_by="segment_index",
+            ascending=True,
+        )
     )
     if not segments:
         return None, 0.0
@@ -336,7 +352,10 @@ def align_knowledge_point(kp_text, video_id, client=None):
     best_sim = -1.0
     best_seg = None
     for seg in segments:
-        seg_emb = _deserialize_embedding(seg.embedding)
+        raw_embedding = hex_to_bytea(seg.get("embedding"))
+        if not raw_embedding:
+            continue
+        seg_emb = _deserialize_embedding(raw_embedding)
         sim = _cosine_similarity(kp_embedding, seg_emb)
         if sim > best_sim:
             best_sim = sim
@@ -346,7 +365,7 @@ def align_knowledge_point(kp_text, video_id, client=None):
         return None, 0.0
 
     # Use the segment's start_time as the timestamp
-    return best_seg.start_time, round(best_sim, 4)
+    return best_seg.get("start_time"), round(best_sim, 4)
 
 
 def align_all_knowledge_points(course_id):
@@ -360,81 +379,98 @@ def align_all_knowledge_points(course_id):
         return {"error": "OpenAI API key not configured"}
 
     # Get the primary video for this course (first one)
-    video = (
-        Video.query
-        .filter_by(course_id=course_id)
-        .order_by(Video.created_at.asc())
-        .first()
+    videos = select_rows(
+        "videos",
+        filters=[("eq", "course_id", course_id)],
+        order_by="created_at",
+        ascending=True,
+        limit=1,
     )
+    video = videos[0] if videos else None
     if not video:
         return {"error": "No video found for this course"}
 
     # Check if video has transcripts with embeddings
-    transcript_count = (
-        VideoTranscript.query
-        .filter_by(video_id=video.id)
-        .filter(VideoTranscript.embedding.isnot(None))
-        .count()
+    transcript_count = len(
+        select_rows(
+            "video_transcripts",
+            columns="id",
+            filters=[("eq", "video_id", video["id"]), ("not.is", "embedding", None)],
+        )
     )
     if transcript_count == 0:
         return {"error": "Video has no transcripts. Process the video first."}
 
     # Get all knowledge points for this course
-    slides = Slide.query.filter_by(course_id=course_id).all()
+    slides = select_rows("slides", filters=[("eq", "course_id", course_id)])
     page_ids = []
     for s in slides:
-        page_ids.extend([p.id for p in s.pages])
+        pages = select_rows("slide_pages", columns="id", filters=[("eq", "slide_id", s["id"])])
+        page_ids.extend([p["id"] for p in pages])
 
     if not page_ids:
         return {"error": "No slide pages found"}
 
-    kps = KnowledgePoint.query.filter(
-        KnowledgePoint.slide_page_id.in_(page_ids)
-    ).all()
+    kps = select_rows("knowledge_points", filters=[("in", "slide_page_id", page_ids)])
 
     if not kps:
         return {"error": "No knowledge points found"}
 
     # Build KP text for batch embedding
-    kp_texts = [f"{kp.title}. {kp.content}" for kp in kps]
+    kp_texts = [f"{kp.get('title')}. {kp.get('content')}" for kp in kps]
     kp_embeddings = _get_embeddings(kp_texts, client)
 
     # Load all transcript embeddings
     segments = (
-        VideoTranscript.query
-        .filter_by(video_id=video.id)
-        .filter(VideoTranscript.embedding.isnot(None))
-        .order_by(VideoTranscript.segment_index)
-        .all()
+        select_rows(
+            "video_transcripts",
+            filters=[("eq", "video_id", video["id"]), ("not.is", "embedding", None)],
+            order_by="segment_index",
+            ascending=True,
+        )
     )
-    seg_embeddings = [_deserialize_embedding(s.embedding) for s in segments]
+    seg_embeddings = []
+    normalized_segments = []
+    for segment in segments:
+        raw_embedding = hex_to_bytea(segment.get("embedding"))
+        if not raw_embedding:
+            continue
+        normalized_segments.append(segment)
+        seg_embeddings.append(_deserialize_embedding(raw_embedding))
 
     updated = 0
     for kp, kp_emb in zip(kps, kp_embeddings):
         best_sim = -1.0
         best_seg = None
-        for seg, seg_emb in zip(segments, seg_embeddings):
+        for seg, seg_emb in zip(normalized_segments, seg_embeddings):
             sim = _cosine_similarity(kp_emb, seg_emb)
             if sim > best_sim:
                 best_sim = sim
                 best_seg = seg
 
         if best_seg is not None:
-            kp.video_id = video.id
-            kp.video_timestamp = best_seg.start_time
-            kp.confidence = round(best_sim, 4)
+            update_row_by_id(
+                "knowledge_points",
+                kp["id"],
+                {
+                    "video_id": video["id"],
+                    "video_timestamp": best_seg.get("start_time"),
+                    "confidence": round(best_sim, 4),
+                },
+            )
             updated += 1
 
-    db.session.commit()
     return {"updated": updated, "total": len(kps)}
 
 
 def get_video_transcript(video_id):
     """Get full transcript text for a video, sorted by time."""
     segments = (
-        VideoTranscript.query
-        .filter_by(video_id=video_id)
-        .order_by(VideoTranscript.start_time)
-        .all()
+        select_rows(
+            "video_transcripts",
+            filters=[("eq", "video_id", video_id)],
+            order_by="start_time",
+            ascending=True,
+        )
     )
-    return [s.to_dict() for s in segments]
+    return [serialize_video_transcript(s) for s in segments]

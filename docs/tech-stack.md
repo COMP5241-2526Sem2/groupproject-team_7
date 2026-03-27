@@ -5,110 +5,71 @@ This document outlines the technologies, frameworks, libraries, and tools used i
 ## Backend Technologies
 
 ### Framework & Server
-- **Flask 3.1.0** - Lightweight Python web framework used as the primary application framework for building RESTful APIs
-- **Gunicorn 23.0.0** - WSGI HTTP Server used for running the Flask application in production environments
-- **Werkzeug 3.1.3** - WSGI utility library that provides the foundation for Flask's request/response handling
+- Flask 3.1.0 - Python web framework used for REST APIs.
+- Gunicorn 23.0.0 - Production WSGI server.
+- Werkzeug 3.1.3 - Request/response and WSGI utilities used by Flask.
 
-### Database & ORM
-- **Supabase** - PostgreSQL-based cloud database solution used for production data storage on Vercel
-  - **Supabase Python Client 2.0+** - Official SDK for connecting to Supabase services via REST APIs and initializing the Supabase client
-- **SQLite** - Fallback database for local development when Supabase is unavailable
-- **SQLAlchemy 3.1.1** (via Flask-SQLAlchemy) - ORM for database abstraction and query management
-- **Flask-Migrate 4.1.0** - Database migration tool that manages schema changes and versions
-- **psycopg2-binary 2.9.10** - PostgreSQL adapter for Python (compatible with Supabase)
+### Database & Data Access
+- Supabase (PostgreSQL) - Primary managed database for production and local-compatible environments.
+- Supabase Python Client 2.0+ - Official client used by backend APIs/services for CRUD via PostgREST.
+- psycopg2-binary 2.9.10 - PostgreSQL driver used by migration/utility scripts.
 
 ### API & Middleware
-- **Flask-CORS 5.0.1** - Middleware that enables Cross-Origin Resource Sharing for API endpoints
+- Flask-CORS 5.0.1 - Cross-origin API access for frontend integration.
 
 ### AI & NLP Services
-- **OpenAI Python Client 1.68.0** - Official SDK for integrating OpenAI APIs
-  - **GPT-4o-mini** - Language model used for chat assistance and content generation
-  - **text-embedding-3-small** - Embedding model for semantic search and RAG (Retrieval Augmented Generation)
-- **GitHub Models** - Alternative AI provider support via OpenAI-compatible API endpoint
+- openai Python client 1.68.0 - OpenAI-compatible SDK used for chat, extraction, quizzes, and embeddings.
+- GitHub Models (preferred) - Default LLM endpoint via OpenAI-compatible interface.
+  - openai/gpt-4.1 - Default chat/completion model.
+  - openai/text-embedding-3-small - Default embedding model.
+- OpenAI-compatible providers (optional) - Supported via OPENAI_API_KEY and OPENAI_BASE_URL overrides.
 
 ### File Processing & Content Handling
-- **PyPDF2 3.0.1** - PDF parsing and manipulation library for extracting text from slide PDFs
-- **PyMuPDF 1.25.3** - Advanced PDF library (alternative to PyPDF2) for PDF processing and thumbnail generation
-- **python-pptx 1.0.2** - PowerPoint document creation and manipulation library for slide processing
-- **numpy >= 2.0.2** - Numerical computing library used for mathematical operations and data processing
+- PyPDF2 3.0.1 - PDF parsing utilities.
+- PyMuPDF 1.25.3 - PDF rendering and thumbnail generation.
+- python-pptx 1.0.2 - PowerPoint text extraction.
+- numpy >= 2.0.2 - Numerical operations and vector utilities.
+
+### Storage & Async Infrastructure
+- boto3 >= 1.34.0 - AWS S3/S3-compatible object storage integration.
+- AWS S3 - Storage for slide/video files and generated thumbnails.
+- Celery >= 5.3.0 - Async task queue support.
+- Redis / Vercel Redis - Broker/result backend for Celery.
 
 ### Utilities
-- **python-dotenv 1.1.0** - Environment variable management from .env files for configuration
-- **requests >= 2.31.0** - HTTP library for making external API calls
-
-### File Storage & CDN
-- **boto3 >= 1.34.0** - AWS SDK for Python to interact with S3 API
-- **AWS S3** - Object storage for slides, videos, and thumbnail images with presigned URLs for access
-
-### Task Queue & Caching (Infrastructure)
-- **Celery** - Distributed task queue for asynchronous processing of complex media file operations
-- **Vercel Redis** (or **Redis** on alternative platforms) - In-memory data store used as Celery broker and result backend for async task management
+- python-dotenv 1.1.0 - Environment variable loading.
+- requests >= 2.31.0 - HTTP client utilities.
 
 ## Frontend Technologies
 
 ### Framework & Libraries
-- **React 18.3.1** - Modern JavaScript library for building interactive user interfaces with component-based architecture
-- **React DOM 18.3.1** - React rendering library for DOM manipulation
-- **react-scripts 5.0.1** - Build scripts and configuration from Create React App
+- React 18.3.1 - Component-driven UI.
+- React DOM 18.3.1 - DOM renderer.
+- react-scripts 5.0.1 - CRA build tooling.
 
 ### HTTP & API Communication
-- **Axios 1.7.9** - Promise-based HTTP client for making API requests to the backend
+- Axios 1.7.9 - Frontend-to-backend API requests.
 
 ### Styling
-- **CSS** - Cascading Style Sheets with modular approach
-  - Global styles in `global.css`
-  - Component-specific stylesheets for ChatAssistant, CourseSelector, Header, QuizPanel, SlidesPanel, TeacherDashboard, and VideoPlayer
-
-### Build & Development Tools
-- **Create React App** - Zero-configuration build setup with webpack, babel, and eslint pre-configured
-
-## Testing Tools
-
-### Frontend Testing
-- **Jest** (via react-scripts) - JavaScript testing framework included in Create React App for unit and integration testing
+- CSS modules by feature in frontend/src/styles.
 
 ## Deployment & DevOps
 
-### Cloud Deployment
-- **Vercel** - Cloud platform for hosting the application with Python support via Flask
-- **Supabase** - Managed PostgreSQL database hosting with automated backups and scaling
-- **Vercel Redis** - Redis integration for Celery broker and result backend
-- **AWS S3** - Object storage service for storing slides, videos, and thumbnails
+### Platforms
+- Vercel - Web app and API deployment target.
+- Supabase - PostgreSQL hosting.
+- AWS S3 - Media object storage.
+- Redis (including Vercel Redis) - Async infrastructure.
 
 ### Environment Configuration
-- Development environment variables managed through `.env` files
-- Production configuration through Vercel environment variables for API keys, database, Redis, and S3 credentials
-- **Supabase credentials** configured as `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` environment variables for initializing the Supabase client
-  - `SUPABASE_URL` - The Supabase project URL (e.g., https://your-project.supabase.co)
-  - `SUPABASE_PUBLISHABLE_KEY` - The Supabase public/anon key for REST API access
-  - Optional: `SUPABASE_DB_PASSWORD` for direct PostgreSQL connections via Supabase
-- **Legacy support** for `DATABASE_URL` environment variable for backward compatibility and direct database connections
-- Vercel Redis credentials configured as `REDIS_URL` environment variable
-- AWS S3 credentials configured as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`, and `AWS_S3_REGION`
+- Core database vars: SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY.
+- Preferred LLM vars: GITHUB_TOKEN and optional GITHUB_MODELS_ENDPOINT.
+- Provider overrides: OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_CHAT_MODEL, OPENAI_EMBEDDING_MODEL.
+- Storage vars: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_S3_REGION, AWS_S3_BUCKET.
+- Redis var: REDIS_URL.
 
 ## Architecture Highlights
-
-### RESTful API Structure
-The backend exposes multiple API endpoints organized by feature:
-- `/api/courses` - Course management
-- `/api/slides` - Slide content and thumbnails
-- `/api/videos` - Video content and transcripts
-- `/api/chat` - Chat assistance with AI
-- `/api/knowledge-points` - Learning objectives and content alignment
-- `/api/quizzes` - Quiz and assessment management
-- `/api/dashboard` - Teacher analytics and dashboard data
-
-### Frontend-Backend Communication
-- Frontend uses Axios to communicate with backend APIs
-- CORS enabled for cross-origin requests
-- Proxy configuration in development for simplified API calls
-
-### AI Integration
-- OpenAI Chat API for conversational AI and content generation
-- Text embeddings for semantic search and knowledge base retrieval
-- Support for alternative providers via configurable base URL (e.g., GitHub Models)
-
-### File Handling
-- Support for PDF slides with text extraction and thumbnail generation
-- PowerPoint file processing for slide content
-- Organized upload folder structure for media files (slides, videos, thumbnails)
+- Backend uses Supabase client queries in API/service layers instead of SQLAlchemy ORM.
+- Flask blueprints expose feature-scoped REST endpoints under /api/*.
+- AI services consume course materials from Supabase-backed tables for RAG-like responses and quiz/KP generation.
+- Media files are stored in S3 while metadata and learning data remain in Supabase Postgres.

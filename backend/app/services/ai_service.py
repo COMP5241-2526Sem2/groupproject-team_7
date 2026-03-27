@@ -4,10 +4,7 @@ import logging
 from flask import current_app
 from openai import OpenAI
 
-from app import db
-from app.models.slide import Slide
-from app.models.knowledge_point import KnowledgePoint
-from app.models.chat import ChatMessage
+from app.services.supabase_repo import select_rows
 
 logger = logging.getLogger(__name__)
 
@@ -27,21 +24,28 @@ def _chat_model():
 
 def _gather_course_context(course_id, max_chars=12000):
     """Gather all slide text and video transcript content for a course as RAG context."""
-    slides = (
-        Slide.query.filter_by(course_id=course_id)
-        .order_by(Slide.created_at.asc())
-        .all()
+    slides = select_rows(
+        "slides",
+        filters=[("eq", "course_id", course_id)],
+        order_by="created_at",
+        ascending=True,
     )
     parts = []
     total = 0
 
     # Slide content
     for slide in slides:
-        for page in sorted(slide.pages, key=lambda p: p.page_number):
-            text = (page.content_text or "").strip()
+        pages = select_rows(
+            "slide_pages",
+            filters=[("eq", "slide_id", slide["id"])],
+            order_by="page_number",
+            ascending=True,
+        )
+        for page in pages:
+            text = (page.get("content_text") or "").strip()
             if not text:
                 continue
-            entry = f"[{slide.original_filename}, Page {page.page_number}]\n{text}"
+            entry = f"[{slide.get('original_filename')}, Page {page.get('page_number')}]\n{text}"
             if total + len(entry) > max_chars * 0.7:
                 parts.append("...(remaining slide content truncated)")
                 break
@@ -49,27 +53,30 @@ def _gather_course_context(course_id, max_chars=12000):
             total += len(entry)
 
     # Video transcript content
-    from app.models.video import Video
-    from app.models.video_transcript import VideoTranscript
-
-    videos = Video.query.filter_by(course_id=course_id).order_by(Video.created_at.asc()).all()
+    videos = select_rows(
+        "videos",
+        filters=[("eq", "course_id", course_id)],
+        order_by="created_at",
+        ascending=True,
+    )
     for video in videos:
-        segments = (
-            VideoTranscript.query
-            .filter_by(video_id=video.id)
-            .order_by(VideoTranscript.start_time)
-            .all()
+        segments = select_rows(
+            "video_transcripts",
+            filters=[("eq", "video_id", video["id"])],
+            order_by="start_time",
+            ascending=True,
         )
         if not segments:
             continue
 
         for seg in segments:
-            text = seg.text.strip()
+            text = (seg.get("text") or "").strip()
             if not text:
                 continue
-            minutes = int(seg.start_time // 60)
-            seconds = int(seg.start_time % 60)
-            entry = f"[{video.original_filename}, {minutes}:{seconds:02d}]\n{text}"
+            start_time = seg.get("start_time") or 0
+            minutes = int(start_time // 60)
+            seconds = int(start_time % 60)
+            entry = f"[{video.get('original_filename')}, {minutes}:{seconds:02d}]\n{text}"
             if total + len(entry) > max_chars:
                 parts.append("...(remaining transcript content truncated)")
                 break
@@ -110,7 +117,7 @@ def generate_chat_response(course_id, user_message, chat_history):
     messages = [{"role": "system", "content": system_prompt}]
     # Include recent chat history for conversation context
     for msg in chat_history[-10:]:
-        messages.append({"role": msg.role, "content": msg.content})
+        messages.append({"role": msg.get("role"), "content": msg.get("content")})
     messages.append({"role": "user", "content": user_message})
 
     try:
@@ -180,7 +187,10 @@ def _fallback_chat_response(user_message):
 def extract_knowledge_points_from_page(slide_page):
     """Use AI to extract knowledge points from a slide page."""
     client = _get_client()
-    text = (slide_page.content_text or "").strip()
+    if isinstance(slide_page, dict):
+        text = (slide_page.get("content_text") or "").strip()
+    else:
+        text = (slide_page.content_text or "").strip()
 
     if not text:
         return []
@@ -232,22 +242,22 @@ def generate_quizzes_for_course(course_id, num_questions=5):
         return []
 
     # Gather knowledge points for linking
-    from app.models.slide import Slide
-    from app.models.knowledge_point import KnowledgePoint
-
-    slides = Slide.query.filter_by(course_id=course_id).all()
+    slides = select_rows("slides", filters=[("eq", "course_id", course_id)])
     page_ids = []
     for s in slides:
-        page_ids.extend([p.id for p in s.pages])
+        pages = select_rows("slide_pages", columns="id", filters=[("eq", "slide_id", s["id"])])
+        page_ids.extend([p["id"] for p in pages])
 
     kp_list = []
     if page_ids:
-        kps = KnowledgePoint.query.filter(
-            KnowledgePoint.slide_page_id.in_(page_ids)
-        ).all()
+        kps = select_rows("knowledge_points", filters=[("in", "slide_page_id", page_ids)])
         kp_list = [
-            {"id": kp.id, "title": kp.title, "content": kp.content,
-             "video_timestamp": kp.video_timestamp}
+            {
+                "id": kp.get("id"),
+                "title": kp.get("title"),
+                "content": kp.get("content"),
+                "video_timestamp": kp.get("video_timestamp"),
+            }
             for kp in kps
         ]
 
