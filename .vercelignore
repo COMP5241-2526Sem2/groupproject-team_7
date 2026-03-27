@@ -1,6 +1,7 @@
 .git
 .gitignore
 node_modules
+frontend/node_modules
 .venv
 venv
 *.pyc
@@ -11,8 +12,11 @@ __pycache__
 .DS_Store
 docker-compose.yml
 Dockerfile
+frontend/Dockerfile
 render.yaml
 railway.toml
 .github
 .vscode
 uploads
+docs/
+scripts/

@@ -1,16 +1,27 @@
+# Core Flask dependencies
 Flask==3.1.0
 Flask-Cors==5.0.1
-psycopg2-binary==2.9.10
-python-dotenv==1.1.0
-openai==1.68.0
-gunicorn==23.0.0
 Werkzeug==3.1.3
+python-dotenv==1.1.0
+
+# Database
+psycopg2-binary==2.9.10
+supabase>=2.0.0
+
+# AI/ML
+openai==1.68.0
+
+# File processing
 PyPDF2==3.0.1
 PyMuPDF==1.25.3
 python-pptx==1.0.2
+
+# Utilities
 numpy>=2.0.2
 requests>=2.31.0
-redis>=5.0.0
-celery>=5.3.0
+
+# AWS S3
 boto3>=1.34.0
-supabase>=2.0.0
+
+# Upstash Redis (serverless-compatible)
+upstash-redis>=1.0.0

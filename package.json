@@ -1,0 +1,16 @@
+{
+  "name": "synclearn",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build && mkdir -p ../backend/static_frontend && cp -r build/* ../backend/static_frontend/",
+    "dev": "cd frontend && npm start",
+    "vercel-build": "cd frontend && npm install && npm run build && mkdir -p ../backend/static_frontend && cp -r build/* ../backend/static_frontend/"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "axios": "^1.13.6"
+  }
+}

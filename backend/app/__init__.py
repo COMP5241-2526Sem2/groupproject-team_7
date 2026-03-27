@@ -1,7 +1,13 @@
 import os
+import sys
 
 from flask import Flask, send_from_directory
 from flask_cors import CORS
+
+# Ensure backend directory is in path for imports
+backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 
 supabase_client = None  # Will be initialized in create_app if Supabase credentials are available
 
@@ -25,7 +31,15 @@ def create_app(config_name="default"):
     from config import config as config_map
     global supabase_client
 
-    frontend_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "static_frontend")
+    # Backend directory for reference
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # Frontend build directory - check multiple possible locations for Vercel compatibility
+    frontend_dir = os.path.join(backend_dir, "static_frontend")
+    if not os.path.isdir(frontend_dir):
+        # Fallback: check if frontend/build exists (local development)
+        alt_frontend_dir = os.path.join(os.path.dirname(backend_dir), "frontend", "build")
+        if os.path.isdir(alt_frontend_dir):
+            frontend_dir = alt_frontend_dir
     app = Flask(__name__, static_folder=os.path.join(frontend_dir, "static"), static_url_path="/static")
     app.config.from_object(config_map[config_name])
 
@@ -50,6 +64,7 @@ def create_app(config_name="default"):
     from app.api.knowledge_points import kp_bp
     from app.api.quizzes import quizzes_bp
     from app.api.dashboard import dashboard_bp
+    from app.api.tasks import bp as tasks_bp
 
     app.register_blueprint(courses_bp, url_prefix="/api/courses")
     app.register_blueprint(slides_bp, url_prefix="/api/slides")
@@ -58,6 +73,7 @@ def create_app(config_name="default"):
     app.register_blueprint(kp_bp, url_prefix="/api/knowledge-points")
     app.register_blueprint(quizzes_bp, url_prefix="/api/quizzes")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
+    app.register_blueprint(tasks_bp, url_prefix="/api/tasks")
 
     # Health check endpoint
     @app.route("/health")
