@@ -1,6 +1,15 @@
 import axios from 'axios';
 
+// Use environment variable or default to relative /api path for same-origin requests
 const API_BASE = process.env.REACT_APP_API_URL || '/api';
+
+// For video streaming, we need the full URL for presigned S3 URLs
+export const getBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return '';
+};
 
 const api = axios.create({
   baseURL: API_BASE,

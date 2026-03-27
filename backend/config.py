@@ -1,8 +1,21 @@
 import os
 from dotenv import load_dotenv
-from supabase import create_client, Client
 
+# Load .env file if it exists (for local development)
 load_dotenv()
+
+# Lazy import supabase to handle missing credentials gracefully
+def _get_supabase_client():
+    """Lazily create Supabase client to avoid import errors when credentials are missing."""
+    try:
+        from supabase import create_client
+        supabase_url = os.environ.get("SUPABASE_URL", "")
+        supabase_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "")
+        if supabase_url and supabase_key:
+            return create_client(supabase_url, supabase_key)
+    except Exception as e:
+        print(f"Error initializing Supabase client: {e}")
+    return None
 
 
 class Config:
@@ -19,17 +32,8 @@ class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
     
     # Supabase Client Configuration
-    # Initialize Supabase client if SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are provided
-    _supabase_url = os.environ.get("SUPABASE_URL", "")
-    _supabase_key = os.environ.get("SUPABASE_PUBLISHABLE_KEY", "")
-    SUPABASE_CLIENT = None
-    if _supabase_url and _supabase_key:
-        try:
-            # Initialize Supabase client for REST API operations
-            # This allows for direct interaction with Supabase services via the official client SDK
-            SUPABASE_CLIENT = create_client(_supabase_url, _supabase_key)
-        except Exception as e:
-            print(f"Error initializing Supabase client. Check SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY.")
+    # Use lazy initialization to avoid import errors during Vercel build
+    SUPABASE_CLIENT = _get_supabase_client()
     
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "uploads")
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 50 * 1024 * 1024))  # 50MB per request (chunks are 5MB)
