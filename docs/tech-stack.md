@@ -11,6 +11,7 @@ This document outlines the technologies, frameworks, libraries, and tools used i
 
 ### Database & ORM
 - **Supabase** - PostgreSQL-based cloud database solution used for production data storage on Vercel
+  - **Supabase Python Client 2.0+** - Official SDK for connecting to Supabase services via REST APIs and initializing the Supabase client
 - **SQLite** - Fallback database for local development when Supabase is unavailable
 - **SQLAlchemy 3.1.1** (via Flask-SQLAlchemy) - ORM for database abstraction and query management
 - **Flask-Migrate 4.1.0** - Database migration tool that manages schema changes and versions
@@ -77,7 +78,11 @@ This document outlines the technologies, frameworks, libraries, and tools used i
 ### Environment Configuration
 - Development environment variables managed through `.env` files
 - Production configuration through Vercel environment variables for API keys, database, Redis, and S3 credentials
-- Supabase credentials configured as `DATABASE_URL` environment variable
+- **Supabase credentials** configured as `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY` environment variables for initializing the Supabase client
+  - `SUPABASE_URL` - The Supabase project URL (e.g., https://your-project.supabase.co)
+  - `SUPABASE_PUBLISHABLE_KEY` - The Supabase public/anon key for REST API access
+  - Optional: `SUPABASE_DB_PASSWORD` for direct PostgreSQL connections via Supabase
+- **Legacy support** for `DATABASE_URL` environment variable for backward compatibility and direct database connections
 - Vercel Redis credentials configured as `REDIS_URL` environment variable
 - AWS S3 credentials configured as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET`, and `AWS_S3_REGION`
 
@@ -101,7 +106,7 @@ The backend exposes multiple API endpoints organized by feature:
 ### AI Integration
 - OpenAI Chat API for conversational AI and content generation
 - Text embeddings for semantic search and knowledge base retrieval
-- Support for alternative providers via configurable base URL (e.g., GitHub Models via Azure)
+- Support for alternative providers via configurable base URL (e.g., GitHub Models)
 
 ### File Handling
 - Support for PDF slides with text extraction and thumbnail generation

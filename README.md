@@ -133,12 +133,14 @@ The platform will be developed in four phases, evolving from a basic MVP to a fu
 ## Start the Program on Codespaces
 
 ### Frontend
-**Install dependencies**
 ```bash
+# Navigate to frontend
+cd frontend
+
+# Install dependencies
 npm install
-```
-**Run the application**
-```bash
+
+# Run the application
 npm start
 ```
 
@@ -154,5 +156,6 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
+# Run the application
 python run.py
 ```
