@@ -38,11 +38,10 @@ class Config:
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "uploads")
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 50 * 1024 * 1024))  # 50MB per request (chunks are 5MB)
     
-    # Redis configuration for Vercel Redis or local Redis
-    # Used as broker for Celery async task queue
-    _redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-    CELERY_BROKER_URL = _redis_url
-    CELERY_RESULT_BACKEND = _redis_url
+    # Upstash Redis configuration (serverless-compatible)
+    # Used for caching, rate limiting, and async task queue
+    UPSTASH_REDIS_REST_URL = os.environ.get("UPSTASH_REDIS_REST_URL", "")
+    UPSTASH_REDIS_REST_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN", "")
     
     # AWS S3 Configuration for file storage (slides, videos, thumbnails)
     # Enables storing large media files in object storage rather than database

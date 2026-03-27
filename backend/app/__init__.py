@@ -64,6 +64,7 @@ def create_app(config_name="default"):
     from app.api.knowledge_points import kp_bp
     from app.api.quizzes import quizzes_bp
     from app.api.dashboard import dashboard_bp
+    from app.api.tasks import bp as tasks_bp
 
     app.register_blueprint(courses_bp, url_prefix="/api/courses")
     app.register_blueprint(slides_bp, url_prefix="/api/slides")
@@ -72,6 +73,7 @@ def create_app(config_name="default"):
     app.register_blueprint(kp_bp, url_prefix="/api/knowledge-points")
     app.register_blueprint(quizzes_bp, url_prefix="/api/quizzes")
     app.register_blueprint(dashboard_bp, url_prefix="/api/dashboard")
+    app.register_blueprint(tasks_bp, url_prefix="/api/tasks")
 
     # Health check endpoint
     @app.route("/health")

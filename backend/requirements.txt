@@ -23,7 +23,5 @@ requests>=2.31.0
 # AWS S3
 boto3>=1.34.0
 
-# Optional: Redis/Celery (may not work in serverless, commented for Vercel)
-# redis>=5.0.0
-# celery>=5.3.0
-# gunicorn==23.0.0
+# Upstash Redis (serverless-compatible)
+upstash-redis>=1.0.0
