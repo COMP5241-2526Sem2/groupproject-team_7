@@ -200,6 +200,7 @@ def transcribe(video_id):
     Returns immediately; client should poll GET /<video_id>/transcribe/status.
     """
     import threading
+    import time as _time
 
     video = db.session.get(Video, video_id)
     if not video:
@@ -213,11 +214,16 @@ def transcribe(video_id):
         with open(status_file) as f:
             status = json.load(f)
         if status.get("state") == "running":
-            return jsonify({"message": "Transcription already in progress"}), 202
+            # Check if the running process is stale (> 30 minutes old)
+            started_at = status.get("started_at", 0)
+            if _time.time() - started_at < 1800:
+                return jsonify({"message": "Transcription already in progress"}), 202
+            # Stale — allow restart
+            logger.warning("Stale ASR status detected for video %s, restarting", video_id)
 
     # Write initial status
     with open(status_file, "w") as f:
-        json.dump({"state": "running", "error": None, "segments": 0}, f)
+        json.dump({"state": "running", "error": None, "segments": 0, "started_at": _time.time()}, f)
 
     # Capture app for background thread
     app = current_app._get_current_object()
@@ -225,16 +231,19 @@ def transcribe(video_id):
     def _run_asr():
         with app.app_context():
             try:
+                logger.info("Background ASR thread started for video %s", video_id)
                 from app.services.alignment_service import transcribe_video as do_transcribe
                 result = do_transcribe(video_id)
                 if isinstance(result, dict) and "error" in result:
+                    logger.error("ASR returned error for video %s: %s", video_id, result["error"])
                     with open(status_file, "w") as f:
                         json.dump({"state": "error", "error": result["error"], "segments": 0}, f)
                 else:
+                    logger.info("ASR completed for video %s: %d segments", video_id, len(result))
                     with open(status_file, "w") as f:
                         json.dump({"state": "done", "error": None, "segments": len(result)}, f)
             except Exception as exc:
-                logger.error("Background ASR failed: %s", exc)
+                logger.exception("Background ASR failed for video %s", video_id)
                 with open(status_file, "w") as f:
                     json.dump({"state": "error", "error": str(exc), "segments": 0}, f)
 
@@ -247,13 +256,23 @@ def transcribe(video_id):
 @videos_bp.route("/<int:video_id>/transcribe/status", methods=["GET"])
 def transcribe_status(video_id):
     """Poll the status of an ongoing ASR transcription."""
+    import time as _time
     status_file = os.path.join(
         current_app.config["UPLOAD_FOLDER"], "videos", f"_asr_status_{video_id}.json"
     )
     if not os.path.exists(status_file):
         return jsonify({"state": "idle", "error": None, "segments": 0})
     with open(status_file) as f:
-        return jsonify(json.load(f))
+        data = json.load(f)
+    # Auto-detect stuck "running" state (>30 min)
+    if data.get("state") == "running":
+        started_at = data.get("started_at", 0)
+        if started_at and _time.time() - started_at > 1800:
+            data["state"] = "error"
+            data["error"] = "Transcription timed out (possibly out of memory). Try a shorter video or use the 'tiny' model."
+            with open(status_file, "w") as f:
+                json.dump(data, f)
+    return jsonify(data)
 
 
 @videos_bp.route("/<int:video_id>/transcript", methods=["GET"])

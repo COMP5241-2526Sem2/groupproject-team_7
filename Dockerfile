@@ -21,6 +21,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Pre-download the faster-whisper model so it's cached in the image
+# (avoids lengthy download at runtime on Railway)
+ARG WHISPER_MODEL=base
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8')"
+
 COPY backend/ .
 COPY --from=frontend-build /frontend/build ./static_frontend
 

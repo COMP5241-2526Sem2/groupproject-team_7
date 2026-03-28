@@ -149,6 +149,9 @@ def transcribe_video(video_id):
     """
     from faster_whisper import WhisperModel
 
+    whisper_model = os.environ.get("WHISPER_MODEL", "base")
+    logger.info("Starting ASR for video %s with model '%s'", video_id, whisper_model)
+
     video = db.session.get(Video, video_id)
     if not video:
         return {"error": "Video not found"}
@@ -162,8 +165,9 @@ def transcribe_video(video_id):
         return {"error": "Failed to extract audio from video (is ffmpeg installed?)"}
 
     try:
-        # Use local faster-whisper with "base" model (fast, reasonable accuracy)
-        model = WhisperModel("base", device="cpu", compute_type="int8")
+        logger.info("Loading Whisper model '%s' ...", whisper_model)
+        model = WhisperModel(whisper_model, device="cpu", compute_type="int8")
+        logger.info("Whisper model loaded, starting transcription ...")
         raw_segments, info = model.transcribe(audio_path, beam_size=5)
 
         segments_created = []
