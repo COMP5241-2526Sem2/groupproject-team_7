@@ -12,7 +12,10 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev gcc && \
+    libpq-dev gcc \
+    libmupdf-dev libfreetype6-dev libharfbuzz-dev libjpeg-dev libopenjp2-7-dev \
+    libreoffice-impress --no-install-recommends \
+    ffmpeg && \
     rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt .
@@ -21,7 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 COPY --from=frontend-build /frontend/build ./static_frontend
 
-RUN mkdir -p uploads/slides uploads/videos
+RUN mkdir -p uploads/slides/thumbnails uploads/videos
 
 EXPOSE ${PORT:-5000}
 
