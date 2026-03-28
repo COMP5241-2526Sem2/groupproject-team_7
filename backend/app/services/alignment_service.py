@@ -164,6 +164,10 @@ def transcribe_video(video_id, progress_cb=None):
     if not video:
         return {"error": "Video not found"}
 
+    if not os.path.exists(video.file_path):
+        logger.error("Video file not found at %s", video.file_path)
+        return {"error": f"Video file not found on disk. Please re-upload the video. (path: {video.file_path})"}
+
     # Remove old transcripts
     VideoTranscript.query.filter_by(video_id=video_id).delete()
     db.session.flush()
@@ -180,7 +184,14 @@ def transcribe_video(video_id, progress_cb=None):
 
         _progress("transcribing", 30, "Transcribing audio (this may take a few minutes)...")
         logger.info("Whisper model loaded, starting transcription ...")
-        raw_segments, info = model.transcribe(audio_path, beam_size=1)
+        raw_segments, info = model.transcribe(
+            audio_path,
+            beam_size=1,
+            vad_filter=True,          # skip silence → much faster
+            vad_parameters=dict(
+                min_silence_duration_ms=500,
+            ),
+        )
 
         # Estimate total duration for progress reporting
         video_duration = video.duration or 0
