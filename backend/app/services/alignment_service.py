@@ -141,14 +141,8 @@ def _split_audio_chunks(audio_path, max_size_mb=24):
     return chunks
 
 
-def transcribe_video(video_id, progress_cb=None):
-    """Run ASR on a video and store timestamped transcript segments.
-
-    Uses local faster-whisper model (no remote API needed for ASR).
-    progress_cb: optional callback(stage, percent, message) for progress reporting.
-    Returns list of created VideoTranscript dicts, or error dict.
-    """
-    from faster_whisper import WhisperModel
+def _transcribe_via_api(audio_path, client, progress_cb=None):
+    """Transcribe audio using OpenAI Whisper API (fast, works on any server)."""
 
     def _progress(stage, percent, message):
         if progress_cb:
@@ -157,8 +151,151 @@ def transcribe_video(video_id, progress_cb=None):
             except Exception:
                 pass
 
+    _progress("transcribing", 30, "Sending audio to Whisper API...")
+    logger.info("Using OpenAI Whisper API for transcription")
+
+    # Split audio into chunks if > 24MB (OpenAI limit is 25MB)
+    chunks = _split_audio_chunks(audio_path, max_size_mb=24)
+    all_segments = []
+
+    for chunk_idx, (chunk_path, offset) in enumerate(chunks):
+        pct = 30 + int((chunk_idx / max(len(chunks), 1)) * 45)
+        _progress("transcribing", pct, f"Transcribing chunk {chunk_idx+1}/{len(chunks)}...")
+
+        with open(chunk_path, "rb") as audio_file:
+            resp = client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                response_format="verbose_json",
+                timestamp_granularities=["segment"],
+            )
+
+        for seg in (resp.segments or []):
+            all_segments.append({
+                "start": round(seg["start"] + offset, 2),
+                "end": round(seg["end"] + offset, 2),
+                "text": seg["text"].strip(),
+            })
+
+        # Clean up chunk file (but not the original)
+        if chunk_path != audio_path and os.path.exists(chunk_path):
+            os.unlink(chunk_path)
+
+    return all_segments
+
+
+def _transcribe_via_local(audio_path, progress_cb=None):
+    """Transcribe audio using local faster-whisper model in a subprocess.
+
+    Running in a subprocess isolates memory usage — if it OOMs, we get a
+    clear error instead of silently killing the main process.
+    """
+
+    def _progress(stage, percent, message):
+        if progress_cb:
+            try:
+                progress_cb(stage, percent, message)
+            except Exception:
+                pass
+
+    import json as _json
+
     whisper_model = os.environ.get("WHISPER_MODEL", "tiny")
-    logger.info("Starting ASR for video %s with model '%s'", video_id, whisper_model)
+    _progress("transcribing", 25, f"Starting local transcription (model: {whisper_model})...")
+
+    # Run transcription in a subprocess to isolate memory
+    script = f'''
+import json, sys
+from faster_whisper import WhisperModel
+
+model = WhisperModel("{whisper_model}", device="cpu", compute_type="int8", cpu_threads=1)
+segments, info = model.transcribe(sys.argv[1], beam_size=1, vad_filter=True,
+                                   vad_parameters=dict(min_silence_duration_ms=500))
+result = []
+for seg in segments:
+    text = seg.text.strip()
+    if not text:
+        continue
+    result.append({{"start": round(seg.start, 2), "end": round(seg.end, 2), "text": text}})
+    # Print progress to stderr so parent can read it
+    print(f"PROGRESS:{{len(result)}}", file=sys.stderr, flush=True)
+
+print(json.dumps(result))
+'''
+
+    _progress("transcribing", 30, "Transcribing audio (subprocess)...")
+
+    proc = subprocess.Popen(
+        ["python", "-c", script, audio_path],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    # Read stderr for progress updates while process runs
+    import selectors
+    sel = selectors.DefaultSelector()
+    sel.register(proc.stderr, selectors.EVENT_READ)
+
+    stderr_lines = []
+    while proc.poll() is None:
+        events = sel.select(timeout=5)
+        for key, _ in events:
+            line = key.fileobj.readline()
+            if line:
+                line = line.strip()
+                stderr_lines.append(line)
+                if line.startswith("PROGRESS:"):
+                    count = int(line.split(":")[1])
+                    _progress("transcribing", min(30 + count, 78),
+                              f"Transcribing... ({count} segments)")
+        # Even if no events, update to show we're alive
+        if not events:
+            _progress("transcribing", 30, "Transcribing audio (working)...")
+
+    sel.unregister(proc.stderr)
+    sel.close()
+
+    # Read remaining stderr
+    remaining_err = proc.stderr.read()
+    if remaining_err:
+        stderr_lines.extend(remaining_err.strip().split('\n'))
+
+    stdout = proc.stdout.read()
+    proc.stdout.close()
+    proc.stderr.close()
+
+    if proc.returncode != 0:
+        err_msg = '\n'.join(l for l in stderr_lines if not l.startswith("PROGRESS:"))
+        logger.error("Local ASR subprocess failed (exit %d): %s", proc.returncode, err_msg[-500:])
+        if proc.returncode == -9:
+            raise RuntimeError("Transcription was killed (out of memory). Try a shorter video.")
+        raise RuntimeError(f"Local transcription failed (exit {proc.returncode}): {err_msg[-300:]}")
+
+    try:
+        all_segments = _json.loads(stdout)
+    except _json.JSONDecodeError:
+        raise RuntimeError(f"Failed to parse transcription output. stderr: {' '.join(stderr_lines[-3:])}")
+
+    return all_segments
+
+
+def transcribe_video(video_id, progress_cb=None):
+    """Run ASR on a video and store timestamped transcript segments.
+
+    Strategy: try OpenAI Whisper API first (fast); fall back to local model.
+    progress_cb: optional callback(stage, percent, message) for progress reporting.
+    Returns list of created VideoTranscript dicts, or error dict.
+    """
+
+    def _progress(stage, percent, message):
+        if progress_cb:
+            try:
+                progress_cb(stage, percent, message)
+            except Exception:
+                pass
+
+    logger.info("Starting ASR for video %s", video_id)
 
     video = db.session.get(Video, video_id)
     if not video:
@@ -166,7 +303,7 @@ def transcribe_video(video_id, progress_cb=None):
 
     if not os.path.exists(video.file_path):
         logger.error("Video file not found at %s", video.file_path)
-        return {"error": f"Video file not found on disk. Please re-upload the video. (path: {video.file_path})"}
+        return {"error": "Video file not found on disk. Please re-upload the video."}
 
     # Remove old transcripts
     VideoTranscript.query.filter_by(video_id=video_id).delete()
@@ -178,51 +315,38 @@ def transcribe_video(video_id, progress_cb=None):
         return {"error": "Failed to extract audio from video (is ffmpeg installed?)"}
 
     try:
-        _progress("load_model", 15, f"Loading Whisper model '{whisper_model}'...")
-        logger.info("Loading Whisper model '%s' ...", whisper_model)
-        model = WhisperModel(whisper_model, device="cpu", compute_type="int8")
+        raw_segments = None
 
-        _progress("transcribing", 30, "Transcribing audio (this may take a few minutes)...")
-        logger.info("Whisper model loaded, starting transcription ...")
-        raw_segments, info = model.transcribe(
-            audio_path,
-            beam_size=1,
-            vad_filter=True,          # skip silence → much faster
-            vad_parameters=dict(
-                min_silence_duration_ms=500,
-            ),
-        )
+        # --- Try OpenAI Whisper API first (fast, reliable) ---
+        client = _get_client()
+        if client:
+            try:
+                _progress("transcribing", 20, "Trying Whisper API...")
+                raw_segments = _transcribe_via_api(audio_path, client, progress_cb)
+                logger.info("Whisper API transcription succeeded: %d segments", len(raw_segments))
+            except Exception as api_err:
+                logger.warning("Whisper API failed (%s), falling back to local model", api_err)
+                _progress("transcribing", 20, "API unavailable, switching to local model...")
+                raw_segments = None
 
-        # Estimate total duration for progress reporting
-        video_duration = video.duration or 0
+        # --- Fallback to local faster-whisper ---
+        if raw_segments is None:
+            raw_segments = _transcribe_via_local(audio_path, progress_cb)
+            logger.info("Local transcription completed: %d segments", len(raw_segments))
+
+        _progress("saving", 80, "Saving transcript to database...")
 
         segments_created = []
-        seg_index = 0
-
-        for seg in raw_segments:
-            text = seg.text.strip()
-            if not text:
-                continue
+        for idx, seg_data in enumerate(raw_segments):
             ts = VideoTranscript(
                 video_id=video_id,
-                segment_index=seg_index,
-                start_time=round(seg.start, 2),
-                end_time=round(seg.end, 2),
-                text=text,
+                segment_index=idx,
+                start_time=seg_data["start"],
+                end_time=seg_data["end"],
+                text=seg_data["text"],
             )
             db.session.add(ts)
             segments_created.append(ts)
-            seg_index += 1
-
-            # Report transcription progress based on time position
-            if video_duration > 0:
-                frac = min(seg.end / video_duration, 1.0)
-                pct = 30 + int(frac * 50)  # 30% ~ 80%
-                _progress("transcribing", pct, f"Transcribing... {int(frac*100)}% ({seg_index} segments)")
-            elif seg_index % 10 == 0:
-                _progress("transcribing", 50, f"Transcribing... ({seg_index} segments so far)")
-
-        _progress("saving", 82, "Saving transcript to database...")
 
         # Update video duration from the last segment if we got any
         if segments_created:
@@ -231,8 +355,7 @@ def transcribe_video(video_id, progress_cb=None):
         video.processed = True
         db.session.commit()
 
-        # Generate embeddings for transcript segments (uses OpenAI embeddings API)
-        client = _get_client()
+        # Generate embeddings for transcript segments
         if client:
             _progress("embedding", 88, "Generating embeddings for semantic alignment...")
             _embed_transcripts(video_id, client)
