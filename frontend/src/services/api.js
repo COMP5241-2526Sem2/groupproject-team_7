@@ -82,6 +82,7 @@ export const deleteVideo = (id) => api.delete(`/videos/${id}`);
 export const getVideoStreamUrl = (filename) => `${API_BASE}/videos/stream/${filename}`;
 export const transcribeVideo = (videoId) => api.post(`/videos/${videoId}/transcribe`);
 export const getTranscribeStatus = (videoId) => api.get(`/videos/${videoId}/transcribe/status`);
+export const cancelTranscribe = (videoId) => api.post(`/videos/${videoId}/transcribe/cancel`);
 export const getVideoTranscript = (videoId) => api.get(`/videos/${videoId}/transcript`);
 
 // --- Chat ---

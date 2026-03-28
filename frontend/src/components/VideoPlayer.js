@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { uploadVideo, getVideosByCourse, getVideoStreamUrl, deleteVideo, transcribeVideo, getTranscribeStatus, getVideoTranscript, getKnowledgePointsByCourse } from '../services/api';
+import { uploadVideo, getVideosByCourse, getVideoStreamUrl, deleteVideo, transcribeVideo, getTranscribeStatus, cancelTranscribe, getVideoTranscript, getKnowledgePointsByCourse } from '../services/api';
 import '../styles/VideoPlayer.css';
 
 function VideoPlayer({ courseId, seekTimestamp, onTimeUpdate, onJumpToSlide }) {
@@ -146,6 +146,17 @@ function VideoPlayer({ courseId, seekTimestamp, onTimeUpdate, onJumpToSlide }) {
       alert('Transcription failed: ' + (err.response?.data?.error || err.message));
       setTranscribing(false);
       setAsrProgress({ progress: 0, message: '' });
+    }
+  };
+
+  const handleCancelTranscribe = async () => {
+    if (!currentVideo) return;
+    try {
+      await cancelTranscribe(currentVideo.id);
+      setTranscribing(false);
+      setAsrProgress({ progress: 0, message: '' });
+    } catch (err) {
+      console.error('Cancel failed:', err);
     }
   };
 
@@ -304,6 +315,9 @@ function VideoPlayer({ courseId, seekTimestamp, onTimeUpdate, onJumpToSlide }) {
                       <span className="asr-progress-text">
                         {asrProgress.progress}% — {asrProgress.message}
                       </span>
+                      <button className="asr-cancel-btn" onClick={handleCancelTranscribe}>
+                        ✕ Cancel & Retry
+                      </button>
                     </div>
                   )}
                   {!transcribing && (

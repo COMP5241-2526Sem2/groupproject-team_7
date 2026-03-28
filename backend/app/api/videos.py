@@ -214,9 +214,9 @@ def transcribe(video_id):
         with open(status_file) as f:
             status = json.load(f)
         if status.get("state") == "running":
-            # Check if the running process is stale (> 30 minutes old)
+            # Check if the running process is stale (> 10 minutes old)
             started_at = status.get("started_at", 0)
-            if _time.time() - started_at < 1800:
+            if _time.time() - started_at < 600:
                 return jsonify({"message": "Transcription already in progress"}), 202
             # Stale — allow restart
             logger.warning("Stale ASR status detected for video %s, restarting", video_id)
@@ -278,15 +278,26 @@ def transcribe_status(video_id):
         return jsonify({"state": "idle", "error": None, "segments": 0})
     with open(status_file) as f:
         data = json.load(f)
-    # Auto-detect stuck "running" state (>30 min)
+    # Auto-detect stuck "running" state (>10 min)
     if data.get("state") == "running":
         started_at = data.get("started_at", 0)
-        if started_at and _time.time() - started_at > 1800:
+        if started_at and _time.time() - started_at > 600:
             data["state"] = "error"
-            data["error"] = "Transcription timed out (possibly out of memory). Try a shorter video or use the 'tiny' model."
+            data["error"] = "Transcription timed out (possibly out of memory). Try again."
             with open(status_file, "w") as f:
                 json.dump(data, f)
     return jsonify(data)
+
+
+@videos_bp.route("/<int:video_id>/transcribe/cancel", methods=["POST"])
+def cancel_transcribe(video_id):
+    """Cancel / reset a stuck ASR transcription so the user can retry."""
+    status_file = os.path.join(
+        current_app.config["UPLOAD_FOLDER"], "videos", f"_asr_status_{video_id}.json"
+    )
+    if os.path.exists(status_file):
+        os.remove(status_file)
+    return jsonify({"message": "Transcription cancelled. You can retry now."})
 
 
 @videos_bp.route("/<int:video_id>/transcript", methods=["GET"])

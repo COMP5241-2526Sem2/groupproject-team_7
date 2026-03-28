@@ -299,6 +299,24 @@
   text-align: center;
 }
 
+.asr-cancel-btn {
+  margin-top: 4px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.3);
+  color: var(--text-secondary);
+  padding: 3px 12px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.asr-cancel-btn:hover {
+  background: rgba(255,80,80,0.15);
+  border-color: #f55;
+  color: #f55;
+}
+
 .transcript-panel {
   max-height: 150px;
   display: flex;
