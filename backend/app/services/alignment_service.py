@@ -157,7 +157,7 @@ def transcribe_video(video_id, progress_cb=None):
             except Exception:
                 pass
 
-    whisper_model = os.environ.get("WHISPER_MODEL", "base")
+    whisper_model = os.environ.get("WHISPER_MODEL", "tiny")
     logger.info("Starting ASR for video %s with model '%s'", video_id, whisper_model)
 
     video = db.session.get(Video, video_id)

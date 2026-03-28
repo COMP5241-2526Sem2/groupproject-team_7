@@ -23,7 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download the faster-whisper model so it's cached in the image
 # (avoids lengthy download at runtime on Railway)
-ARG WHISPER_MODEL=base
+# Use "tiny" by default for fast transcription on limited-CPU cloud platforms
+ARG WHISPER_MODEL=tiny
 RUN python -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8')"
 
 COPY backend/ .
