@@ -180,7 +180,7 @@ def transcribe_video(video_id, progress_cb=None):
 
         _progress("transcribing", 30, "Transcribing audio (this may take a few minutes)...")
         logger.info("Whisper model loaded, starting transcription ...")
-        raw_segments, info = model.transcribe(audio_path, beam_size=5)
+        raw_segments, info = model.transcribe(audio_path, beam_size=1)
 
         # Estimate total duration for progress reporting
         video_duration = video.duration or 0
