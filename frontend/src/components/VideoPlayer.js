@@ -9,6 +9,7 @@ function VideoPlayer({ courseId, seekTimestamp, onTimeUpdate, onJumpToSlide }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [asrProgress, setAsrProgress] = useState({ progress: 0, message: '' });
   const [transcript, setTranscript] = useState([]);
   const [knowledgePoints, setKnowledgePoints] = useState([]);
   const [currentTime, setCurrentTime] = useState(0);
@@ -64,22 +65,28 @@ function VideoPlayer({ courseId, seekTimestamp, onTimeUpdate, onJumpToSlide }) {
       getTranscribeStatus(currentVideo.id).then((res) => {
         if (res.data.state === 'running') {
           setTranscribing(true);
+          setAsrProgress({ progress: res.data.progress || 0, message: res.data.message || 'Processing...' });
           const poll = setInterval(async () => {
             try {
               const s = await getTranscribeStatus(currentVideo.id);
-              if (s.data.state === 'done') {
+              if (s.data.state === 'running') {
+                setAsrProgress({ progress: s.data.progress || 0, message: s.data.message || 'Processing...' });
+              } else if (s.data.state === 'done') {
                 clearInterval(poll);
+                setAsrProgress({ progress: 100, message: 'Done!' });
                 await loadTranscript(currentVideo.id);
                 setTranscribing(false);
               } else if (s.data.state === 'error') {
                 clearInterval(poll);
                 setTranscribing(false);
+                setAsrProgress({ progress: 0, message: '' });
               }
             } catch {
               clearInterval(poll);
               setTranscribing(false);
+              setAsrProgress({ progress: 0, message: '' });
             }
-          }, 5000);
+          }, 3000);
         }
       }).catch(() => {});
     } else {
@@ -107,32 +114,38 @@ function VideoPlayer({ courseId, seekTimestamp, onTimeUpdate, onJumpToSlide }) {
   const handleTranscribe = async () => {
     if (!currentVideo || transcribing) return;
     setTranscribing(true);
+    setAsrProgress({ progress: 0, message: 'Starting...' });
     try {
       await transcribeVideo(currentVideo.id);
       // Poll for completion
       const poll = setInterval(async () => {
         try {
           const res = await getTranscribeStatus(currentVideo.id);
-          const { state, error } = res.data;
-          if (state === 'done') {
+          const { state, error, progress, message } = res.data;
+          if (state === 'running') {
+            setAsrProgress({ progress: progress || 0, message: message || 'Processing...' });
+          } else if (state === 'done') {
             clearInterval(poll);
+            setAsrProgress({ progress: 100, message: 'Done!' });
             await loadTranscript(currentVideo.id);
             setTranscribing(false);
           } else if (state === 'error') {
             clearInterval(poll);
             alert('Transcription failed: ' + (error || 'Unknown error'));
             setTranscribing(false);
+            setAsrProgress({ progress: 0, message: '' });
           }
-          // state === 'running' → keep polling
         } catch {
           clearInterval(poll);
           setTranscribing(false);
+          setAsrProgress({ progress: 0, message: '' });
         }
-      }, 5000); // poll every 5 seconds
+      }, 3000); // poll every 3 seconds
     } catch (err) {
       console.error('Transcription failed:', err);
       alert('Transcription failed: ' + (err.response?.data?.error || err.message));
       setTranscribing(false);
+      setAsrProgress({ progress: 0, message: '' });
     }
   };
 
@@ -278,9 +291,24 @@ function VideoPlayer({ courseId, seekTimestamp, onTimeUpdate, onJumpToSlide }) {
                     onClick={handleTranscribe}
                     disabled={transcribing}
                   >
-                    {transcribing ? '⏳ Transcribing (this may take a minute)...' : '🎤 Transcribe Video (ASR)'}
+                    {transcribing ? '⏳ Transcribing...' : '🎤 Transcribe Video (ASR)'}
                   </button>
-                  <p className="transcribe-hint">Generate captions & enable semantic alignment with slides</p>
+                  {transcribing && (
+                    <div className="asr-progress-wrapper">
+                      <div className="asr-progress-bar">
+                        <div
+                          className="asr-progress-fill"
+                          style={{ width: `${asrProgress.progress}%` }}
+                        />
+                      </div>
+                      <span className="asr-progress-text">
+                        {asrProgress.progress}% — {asrProgress.message}
+                      </span>
+                    </div>
+                  )}
+                  {!transcribing && (
+                    <p className="transcribe-hint">Generate captions & enable semantic alignment with slides</p>
+                  )}
                 </div>
               )}
             </div>

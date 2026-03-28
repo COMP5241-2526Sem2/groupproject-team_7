@@ -222,8 +222,9 @@ def transcribe(video_id):
             logger.warning("Stale ASR status detected for video %s, restarting", video_id)
 
     # Write initial status
+    started_at = _time.time()
     with open(status_file, "w") as f:
-        json.dump({"state": "running", "error": None, "segments": 0, "started_at": _time.time()}, f)
+        json.dump({"state": "running", "error": None, "segments": 0, "started_at": started_at, "progress": 0, "message": "Starting..."}, f)
 
     # Capture app for background thread
     app = current_app._get_current_object()
@@ -233,19 +234,32 @@ def transcribe(video_id):
             try:
                 logger.info("Background ASR thread started for video %s", video_id)
                 from app.services.alignment_service import transcribe_video as do_transcribe
-                result = do_transcribe(video_id)
+
+                def _on_progress(stage, percent, message):
+                    with open(status_file, "w") as f:
+                        json.dump({
+                            "state": "running",
+                            "error": None,
+                            "segments": 0,
+                            "started_at": started_at,
+                            "stage": stage,
+                            "progress": percent,
+                            "message": message,
+                        }, f)
+
+                result = do_transcribe(video_id, progress_cb=_on_progress)
                 if isinstance(result, dict) and "error" in result:
                     logger.error("ASR returned error for video %s: %s", video_id, result["error"])
                     with open(status_file, "w") as f:
-                        json.dump({"state": "error", "error": result["error"], "segments": 0}, f)
+                        json.dump({"state": "error", "error": result["error"], "segments": 0, "progress": 0}, f)
                 else:
                     logger.info("ASR completed for video %s: %d segments", video_id, len(result))
                     with open(status_file, "w") as f:
-                        json.dump({"state": "done", "error": None, "segments": len(result)}, f)
+                        json.dump({"state": "done", "error": None, "segments": len(result), "progress": 100}, f)
             except Exception as exc:
                 logger.exception("Background ASR failed for video %s", video_id)
                 with open(status_file, "w") as f:
-                    json.dump({"state": "error", "error": str(exc), "segments": 0}, f)
+                    json.dump({"state": "error", "error": str(exc), "segments": 0, "progress": 0}, f)
 
     t = threading.Thread(target=_run_asr, daemon=True)
     t.start()

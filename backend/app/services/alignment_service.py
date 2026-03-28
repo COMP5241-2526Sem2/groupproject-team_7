@@ -141,13 +141,21 @@ def _split_audio_chunks(audio_path, max_size_mb=24):
     return chunks
 
 
-def transcribe_video(video_id):
+def transcribe_video(video_id, progress_cb=None):
     """Run ASR on a video and store timestamped transcript segments.
 
     Uses local faster-whisper model (no remote API needed for ASR).
+    progress_cb: optional callback(stage, percent, message) for progress reporting.
     Returns list of created VideoTranscript dicts, or error dict.
     """
     from faster_whisper import WhisperModel
+
+    def _progress(stage, percent, message):
+        if progress_cb:
+            try:
+                progress_cb(stage, percent, message)
+            except Exception:
+                pass
 
     whisper_model = os.environ.get("WHISPER_MODEL", "base")
     logger.info("Starting ASR for video %s with model '%s'", video_id, whisper_model)
@@ -160,15 +168,22 @@ def transcribe_video(video_id):
     VideoTranscript.query.filter_by(video_id=video_id).delete()
     db.session.flush()
 
+    _progress("extract_audio", 5, "Extracting audio from video...")
     audio_path = _extract_audio(video.file_path)
     if audio_path is None:
         return {"error": "Failed to extract audio from video (is ffmpeg installed?)"}
 
     try:
+        _progress("load_model", 15, f"Loading Whisper model '{whisper_model}'...")
         logger.info("Loading Whisper model '%s' ...", whisper_model)
         model = WhisperModel(whisper_model, device="cpu", compute_type="int8")
+
+        _progress("transcribing", 30, "Transcribing audio (this may take a few minutes)...")
         logger.info("Whisper model loaded, starting transcription ...")
         raw_segments, info = model.transcribe(audio_path, beam_size=5)
+
+        # Estimate total duration for progress reporting
+        video_duration = video.duration or 0
 
         segments_created = []
         seg_index = 0
@@ -188,6 +203,16 @@ def transcribe_video(video_id):
             segments_created.append(ts)
             seg_index += 1
 
+            # Report transcription progress based on time position
+            if video_duration > 0:
+                frac = min(seg.end / video_duration, 1.0)
+                pct = 30 + int(frac * 50)  # 30% ~ 80%
+                _progress("transcribing", pct, f"Transcribing... {int(frac*100)}% ({seg_index} segments)")
+            elif seg_index % 10 == 0:
+                _progress("transcribing", 50, f"Transcribing... ({seg_index} segments so far)")
+
+        _progress("saving", 82, "Saving transcript to database...")
+
         # Update video duration from the last segment if we got any
         if segments_created:
             video.duration = segments_created[-1].end_time
@@ -198,8 +223,10 @@ def transcribe_video(video_id):
         # Generate embeddings for transcript segments (uses OpenAI embeddings API)
         client = _get_client()
         if client:
+            _progress("embedding", 88, "Generating embeddings for semantic alignment...")
             _embed_transcripts(video_id, client)
 
+        _progress("done", 100, f"Completed! {len(segments_created)} segments transcribed.")
         return [t.to_dict() for t in segments_created]
 
     except Exception as exc:

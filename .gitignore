@@ -27,3 +27,4 @@ uploads/
 
 backend/static_frontend/
 backend/instance/
+.venv/
