@@ -1,130 +1,471 @@
-# Sync Learn: Multimodal AI Smart Review Platform
+# Sync Learn: 多模态 AI 智能复习平台
 
-> An AI-synchronized learning ecosystem that semantically aligns lecture notes with videos, creating a closed loop of "learning-practice-assessment."
-
-[![Open in Codespaces](https://classroom.github.com/assets/launch-codespace-2972f46106e565e64193e422d61a12cf1da4916b45550586e14ef0a7c637dd04.svg)](https://classroom.github.com/open-in-codespaces?assignment_repo_id=22668957)
+> 一个面向教学复习场景的课程学习平台，通过课件、视频、问答和测验的语义关联，形成“学习 - 练习 - 反馈 - 复习”的闭环。
 
 ---
 
-## Background
+## 一、项目背景
 
-Currently, students face a disconnection between lecture notes and videos during review. When encountering difficult points in their notes, students waste significant time manually searching for corresponding explanations in lengthy videos. Meanwhile, teachers lack precise insights into students' actual knowledge gaps, making final reviews unfocused and inefficient.
+在传统课程复习场景中，学生经常会遇到两个问题：
 
-**Sync Learn** addresses this gap through a semantic alignment engine that automatically matches knowledge points in lecture notes with key video frames, shifting students from "passive viewing" to "active learning."
+1. 课件中的知识点和视频讲解是分离的，学生需要手动拖动进度条才能找到对应内容。
+2. 教师很难快速判断学生到底在哪些知识点上最容易出错，复习内容往往缺乏针对性。
 
----
+本项目希望解决这两个痛点。系统以课程为中心，将上传的课件、视频、AI 问答、自动测验和教师分析整合到同一个平台中，并通过知识点抽取、视频转录和语义对齐，让学生能够从课件直接跳转到相关视频片段，也能在答题后立即回看对应讲解内容。
 
-## Core Objectives
-
-- **Semantic Alignment**: Automatically match knowledge points in notes with key video frames for instant navigation
-- **Immediate Feedback**: Enable "learning by doing" through AI-generated quizzes
-- **Learning Insights**: Provide teachers with video heatmaps and AI-generated review briefs
+从实现上看，当前仓库已经完成了完整的前后端联动：前端负责三栏式学习界面和交互状态管理，后端负责文件上传、文本抽取、视频转录、知识点生成、测验生成和教师分析，AI 服务层则负责内容生成和语义匹配。
 
 ---
 
-## Core Modules
+## 二、平台对教师的核心价值
 
-The platform features a **three-panel layout** that integrates the entire learning process:
+### 1. 教学准备工作自动化
 
-| Module | Interaction Mode | Core Functions |
-|:-------|:-----------------|:----------------|
-| **① Interactive Notes Module** (Left) | Uploaded by teachers/students + AI recognition | PPT/PDF display, knowledge point anchors, real-time highlighting |
-| **② Smart Video Player Module** (Top Right) | Uploaded by teachers + AI indexing | Video playback, progress bar heatmap, keyframe navigation |
-| **③ AI Learning Assistant Module** (Bottom Right) | AI-generated | Q&A dialog, instant quizzes, wrong-answer backtracking |
+| 传统方式 | Sync Learn |
+|:--|:--|
+| 手工标注课件知识点（每节课 30-40 分钟） | PPT 上传后自动提取知识点（5 分钟）|
+| 手动对应 PPT 讲解位置和视频时间戳 | 系统自动通过视频转录与语义匹配对齐 |
+| 手工出题、标注答案、输入系统 | 一键生成测验题目，自动判分 |
 
----
+### 2. 学生掌握情况实时可见
 
-## Core Interaction Logic
+教师不用等到期末考试才知道学生哪里学得不好。通过平台的教师分析面板，教师可以：
 
-### 1. Notes-Video Synchronization
+- **实时看到高错率知识点**：哪些知识点学生容易出错？错题率多少？
+- **追踪学生困惑点**：学生在哪些话题上提问最多？说明这些地方是难点
+- **按知识点诊断**：不是看总成绩，而是看具体每个知识点的掌握率
 
-The system leverages an AI engine (ASR + OCR + Embedding) to achieve precise alignment:
+**教学决策支持**：
+- 今天讲的"数据库连接"知识点错题率 68%？下节课需要重点讲解
+- 张三在这个知识点连续错 3 次？课后需要一对一辅导
+- 班级 85% 学生都卡在"SQL 性能优化"上？复习课要集中突破
 
-- **Hover Interaction**: Hovering over a knowledge point in the notes reveals a "Jump to Explanation" icon
-- **Instant Navigation**: Clicking the icon jumps the video to the corresponding timestamp (accurate to the second)
-- **Visual Tracking**: As the video plays, the corresponding paragraph in the notes highlights and auto-scrolls
+### 3. 学生自助学习效率提升，减轻教师答疑负担
 
-### 2. "Learn-and-Practice" AI Quizzes
+**学生能自助做的事：**
+- 看到知识点 → 一键跳到相关视频讲解，不用问教师
+- 答错题 → 一键回看视频讲解片段，而不是等教师课后答疑
+- 有问题 → AI 问答系统可以基于课程内容回答，减少重复性问题
 
-- **Automatic Trigger**: Quiz appears after a knowledge point segment finishes playing
-- **Manual Trigger**: Students click "Knowledge Check" in the dialog box
-- **Wrong-Answer Backtracking**: Incorrect answers link directly back to the relevant video segment for remediation
+**教师的实际收益：**
+- ✅ 减少重复答疑：学生能自主找到讲解，不用问 10 遍同一个问题
+- ✅ 可以专注高价值答疑：集中精力解答"为什么"而不是"在哪里讲的"
+- ✅ 教师办公时间被解放
 
-### 3. AI Learning Assistant
+### 4. 复习课更有针对性
 
-- Leverages RAG technology to provide answers with precise multimodal citations (keyframes, slide regions, video timestamps)
-- Supports natural language queries and returns answers with source references
+AI 根据学生的测验数据、提问记录和知识点掌握情况，生成**课程复习建议**，帮助教师快速准备复习课：
 
----
+- "这周错题最多的 5 个知识点是..."
+- "学生提问最频繁的 3 个主题是..."
+- "建议复习课重点讲解这些内容..."
 
-## Teacher Dashboard: Learning Insights
-
-### Student Behavior Heatmap
-
-| Dimension | Visualization | Business Insight |
-|:----------|:---------------|:------------------|
-| **Video Progress Bar** | Color overlay (Red = High frequency) | Identifies segments frequently rewatched, paused, or skipped |
-| **Notes Pages** | Heat bar next to thumbnails | Highlights "problematic" pages where students struggle |
-
-### AI-Generated Review Brief
-
-The system automatically generates a natural language summary that identifies:
-
-- **Difficulty Extraction**: Top 5 knowledge points with highest quiz error rates
-- **Query Clustering**: Semantic clustering of student questions from the dialog
-- **Review Recommendations**: Targeted suggestions, e.g., "Recommend focusing on this formula derivation during the review session"
+教师不用从零开始计划复习，而是基于数据驱动的诊断快速备课。
 
 ---
 
-## Technical Implementation
+## 三、平台实现的主要功能
 
-### Core Algorithms
+### 1. 课程管理
 
-- **Semantic Alignment Engine**: ASR (speech-to-text) + OCR + Embedding for knowledge point-to-video frame matching
-- **RAG Technology**: AI assistant retrieves information from course materials to provide answers with source citations
+平台以课程作为最核心的数据单元。用户首先创建或选择课程，然后围绕该课程上传课件和视频，后续所有知识点、聊天记录、测验结果和分析报表都绑定到该课程下。
 
-### Backend Architecture
+这种设计有两个好处：
 
-**Asynchronous Processing**: Celery + Redis handle complex media file processing without impacting user experience
+- 数据组织清晰，便于后续统计和扩展。
+- 所有学习行为都能回到同一个课程上下文中，方便 AI 使用课程内容进行回答和分析。
 
-| Layer | Technology |
-|:------|:-----------|
-| Frontend | React 18 |
-| Backend | Flask |
-| Database | PostgreSQL + pgvector (high-speed semantic search) |
-| AI Services | OpenAI Embeddings + GPT-4 |
+### 2. 课件上传与页面解析
+
+平台支持 PDF、PPT 和 PPTX 文件上传。后端会在上传后自动解析页面内容，并为每一页生成可视化缩略图或文本内容。
+
+具体来说：
+
+- PDF 文件会被逐页提取文本并渲染为图片缩略图。
+- PPT/PPTX 文件会先提取每页文本，再尝试转换为 PDF 以生成页面图像。
+- 每一页课件都会对应一个 SlidePage 记录，其中保存页面文本、页码、缩略图路径和嵌入信息。
+
+前端左侧的 Slides 面板会展示这些页面内容，并允许用户按页浏览课件。
+
+### 3. 视频上传、播放与转录
+
+平台支持 MP4、WebM、OGG 和 MOV 格式的视频上传。为了兼容大文件，前端采用分片上传方式：先初始化上传会话，再按固定大小逐块上传，最后由后端合并为完整视频文件。
+
+上传完成后，用户可以触发视频转录任务。后端会调用 ASR 服务把视频语音转成带时间戳的文本段落，并保存到 VideoTranscript 表中。这样，视频不再只是媒体文件，而是变成了可检索、可引用、可对齐的结构化学习资源。
+
+前端的视频播放器还支持：
+
+- 正常播放与时间同步
+- 字幕段落滚动
+- 从知识点或问答结果直接跳转到指定时间点
+
+### 4. 知识点抽取与语义对齐
+
+系统会根据每页课件文本自动抽取知识点，包括标题、说明、对应页面和视频时间戳。提取出的知识点保存在 KnowledgePoint 表中，并与具体课件页绑定。
+
+如果视频已经完成转录并生成嵌入向量，系统还会进一步把知识点文本与视频 transcript 做语义匹配，寻找最相关的讲解片段，生成更准确的时间戳映射。若语义对齐暂时不可用，系统也会根据页面位置和视频总时长构造一个基础映射，确保功能可用。
+
+这个功能是平台的核心能力之一，因为它把“课件内容”与“视频讲解”从人工对照变成了系统自动关联。
+
+### 5. AI 学习助手
+
+平台提供基于课程内容的 AI 问答功能。学生可以围绕课件、视频或课程概念直接提问，后端会把该课程的课件文本和视频转录内容整理成上下文，再调用大模型生成回答。
+
+系统还会从回答中提取引用信息，例如：
+
+- 对应的课件页码
+- 对应的视频时间戳
+
+这些引用会返回给前端，并以可点击标签的形式展示。用户点击视频引用后，可以直接跳转到对应时间点，从而实现“问答 - 定位 - 回看”的闭环。
+
+### 6. AI 自动测验
+
+平台支持根据课程内容自动生成选择题测验。题目会尽量绑定到具体知识点，并附带解释说明和视频回看时间点。
+
+学生完成测验后，系统会保存作答记录，并返回答题是否正确、正确答案和解析。如果答错，前端会提供“回看视频”的入口，让学生能立即回到相关讲解片段进行复习。
+
+这部分实现了“学习之后立刻练习，练习之后立刻纠错”的设计目标。
+
+### 7. 教师仪表盘
+
+教师端提供课程学习分析面板，主要包括：
+
+- 课程资源统计，例如课件数量、视频数量、知识点数量和测验数量
+- 测验成绩与正确率统计
+- 错误率最高的知识点排行
+- 学生提问内容摘要
+- AI 生成的复习建议
+
+教师可以通过这些信息快速判断课程中哪些知识点最容易出错，哪些内容需要在复习课中重点讲解。相比传统 LMS 只显示“完成率”或“观看时长”，本项目的分析维度更贴近教学决策。
 
 ---
 
-## Comparison with Traditional Platforms
+## 四、系统界面与交互设计
 
-| Dimension | Traditional LMS | Sync Learn |
-|:----------|:----------------|:-----------|
-| **Content Navigation** | Manually scrubbing through long videos | Semantic jump from notes to video |
-| **Student Assessment** | Manually created static quizzes | AI-generated quizzes synchronized with knowledge points |
-| **Teacher Feedback** | Basic metrics like "Video Completion %" | Heatmaps + AI-summarized learning gaps |
-| **Q&A Support** | Forum-based or delayed email responses | Instant AI Q&A with multimodal citations |
+前端采用三栏式工作台布局，核心结构如下：
+
+| 模块 | 位置 | 主要功能 |
+|:--|:--|:--|
+| 课件面板 | 左侧 | 课件浏览、页面切换、知识点标签、跳转视频 |
+| 视频播放器 | 右上 | 视频播放、转录状态、字幕滚动、跳转课件 |
+| AI 助手 / Quiz | 右下 | 问答、测验、错题回看、历史记录 |
+| 教师仪表盘 | 独立视图 | 课程统计、难点分析、复习建议 |
+
+前端通过统一的状态管理实现模块联动。例如：
+
+- 课件中的知识点点击后，会向视频播放器发送跳转请求。
+- 视频播放到某个时间点后，可以反向定位到相应课件页。
+- AI 问答返回的视频引用可以直接打开对应片段。
+- 测验答错后，可一键跳回相关视频时间点。
+
+这种设计让平台从“多个独立页面”变成“多个相互引用的学习视图”。
 
 ---
 
-## Prototype Reference
+## 五、技术实现路径
 
-The platform adopts a left-right split-screen layout, with the video player positioned at the top right and the AI interaction area at the bottom right.
+### 1. 前端技术栈
 
-- **Layout**: Three-panel structure — left notes area (anchor highlighting) + top-right video player + bottom-right AI assistant
-- **Figma Prototype**: [https://batch-equity-33459089.figma.site](https://batch-equity-33459089.figma.site)
+前端使用 React 18 构建，接口请求通过 axios 统一封装在 [frontend/src/services/api.js](frontend/src/services/api.js) 中。页面逻辑主要放在几个核心组件里：
+
+- [frontend/src/App.js](frontend/src/App.js)：负责整体布局、课程切换和视图切换
+- [frontend/src/components/SlidesPanel.js](frontend/src/components/SlidesPanel.js)：负责课件展示、知识点呈现和提取状态轮询
+- [frontend/src/components/VideoPlayer.js](frontend/src/components/VideoPlayer.js)：负责视频播放、转录、字幕同步和知识点联动
+- [frontend/src/components/ChatAssistant.js](frontend/src/components/ChatAssistant.js)：负责 AI 问答和引用跳转
+- [frontend/src/components/QuizPanel.js](frontend/src/components/QuizPanel.js)：负责测验生成、答题与回看
+- [frontend/src/components/TeacherDashboard.js](frontend/src/components/TeacherDashboard.js)：负责教师分析视图
+
+前端 `package.json` 中的依赖较轻，主要就是 React、React DOM、Axios 和 React Scripts，说明项目采用的是简洁的单页应用架构，没有额外引入复杂的前端状态管理库。
+
+### 2. 后端技术栈
+
+后端基于 Flask 构建，使用 Flask-SQLAlchemy 管理数据库模型，Flask-Migrate 支持迁移，Flask-CORS 解决前后端跨域问题。配置文件位于 [backend/config.py](backend/config.py)，启动入口位于 [backend/run.py](backend/run.py)，应用工厂和蓝图注册逻辑位于 [backend/app/__init__.py](backend/app/__init__.py)。
+
+后端 API 按功能拆分为多个 Blueprint：
+
+- 课程管理：课程创建、查询、更新、删除
+- 课件处理：上传、解析、页面展示、删除
+- 视频处理：分片上传、合并、转录、转录状态查询
+- 知识点处理：抽取、对齐、查询、删除
+- 测验处理：生成、提交、清除、统计
+- 教师仪表盘：课程总览、难点分析、提问分析、复习总结
+
+### 3. 数据库设计
+
+当前实现的数据模型已经覆盖了平台的核心业务链路：
+
+| 模型 | 作用 |
+|:--|:--|
+| Course | 课程基础信息 |
+| Slide | 课件文件及解析状态 |
+| SlidePage | 课件页面文本、缩略图和嵌入 |
+| Video | 视频文件及时长信息 |
+| VideoTranscript | 视频转录片段与时间戳和向量嵌入 |
+| KnowledgePoint | 知识点及其视频对齐结果（含置信度） |
+| Quiz | 测验题目、选项、答案和解析 |
+| QuizAttempt | 学生答题记录 |
+| ChatMessage | 问答消息及引用信息 |
+
+这种模型设计的关键是：每类学习行为都能够追溯到课程，并且所有内容都能通过知识点、页码和时间戳串联起来。**数据存储采用 PostgreSQL + 二进制嵌入向量字段**，支持后续的语义搜索和对齐。
+
+### 4. 课件处理流程
+
+课件上传后，后端会先校验文件类型，再把文件保存到上传目录。随后按文件类型进行解析：
+
+| 格式 | 文本提取 | 缩略图生成 | 限制 |
+|:--|:--|:--|:--|
+| PDF | ✓ PyMuPDF | ✓ 渲染 | ✗ 不支持扫描图像 |
+| PPT | ✓ python-pptx | ✓ LibreOffice 转换 | ✗ 需要 LibreOffice 支持 |
+| PPTX | ✓ python-pptx | ✓ LibreOffice 转换 | ✗ 需要 LibreOffice 支持 |
+
+每一页课件最终会保存为一个 SlidePage 记录，其中包含：
+
+- 页面编号
+- 页面文本（依赖文件内嵌文本层）
+- 缩略图路径
+- 相关知识点
+
+降级方案：当文件无内嵌文本层时，页面内容为空，但缩略图仍会生成，用户可手动输入内容。
+
+### 5. 视频处理流程
+
+视频上传采用分片上传机制。具体流程是：
+
+1. 前端请求初始化上传，后端返回 upload_id。
+2. 前端把视频切成 5MB chunk，逐个上传。
+3. 后端在 complete 阶段按顺序合并所有 chunk。
+4. 合并完成后用 ffprobe 获取视频时长。
+5. 后续可启动转录任务。
+
+**ASR 转录的两层工作流：**
+
+| 方案 | 条件 | 优点 | 缺点 |
+|:--|:--|:--|:--|
+| OpenAI Whisper API | 配置 OPENAI_API_KEY | 快速准确 | 需付费 + 需网络 |
+| 本地 faster-whisper | 无依赖 | 免费离线 | 慢 + 可能 OOM |
+
+转录成功后，系统把每段文本和时间戳存入 VideoTranscript，并为每段自动生成嵌入向量。嵌入向量后续用于知识点对齐时的语义匹配。系统会自动处理超时和重试，允许用户取消并重新开始转录。
+
+### 6. 知识点抽取与对齐流程（三层策略）
+
+知识点抽取由 AI 服务负责，相关逻辑在 [backend/app/services/ai_service.py](backend/app/services/ai_service.py) 中。系统会读取课件页面文本，让模型返回结构化 JSON，内容包括知识点标题和简要说明。
+
+**第一层：AI 优先生成**
+- 调用 OpenAI Chat 将页面文本转成 2-5 个知识点
+- 降级方案：若 API 不可用，用规则从首个句子生成知识点
+
+**第二层：语义对齐（需转录）**
+- 优先方案：若视频已转录 + 已生成嵌入向量，则通过余弦相似度找最相关转录段落的时间戳
+- 方法：对知识点文本生成嵌入向量，与所有转录段落嵌入做相似度计算
+- 返回：时间戳 + 置信度（0.0-1.0）
+
+**第三层：比例映射（降级方案）**
+- 当视频无转录或无嵌入时，使用：`页面位置 / 总页数 × 视频时长`
+- 置信度固定为 0.3（表示低精度）
+
+这样即使数据处理未完成，平台也能保持可用。系统不会因为某个 AI 环节失败而阻断流程。
+
+### 7. 问答系统实现
+
+AI 问答采用课程上下文驱动的 RAG 思路。系统先从课程中收集课件文本和视频转录文本，再把这些内容作为上下文提供给大模型。
+
+**RAG 工作流：**
+1. 收集课程上下文（课件所有页面 + 视频所有转录段落，限制 12000 字符）
+2. 调用 OpenAI Chat 生成回答（temperature=0.7）
+3. 解析回答中的引用标记
+4. 返回消息 + 构造化引用信息
+
+**引用解析支持两类来源：**
+- 课件引用格式：`[filename, Page X]` -> 可跳转到课件第 X 页
+- 视频引用格式：`[filename, M:SS]` -> 可跳转到视频 M 分 SS 秒处
+
+**降级方案：**
+- 若 OPENAI_API_KEY 未配置，返回配置提示信息
+- 前端显示提示并禁用问答功能
+
+前端根据引用实现可点击跳转，让用户可以从回答直接返回学习材料本身。系统支持多轮对话上下文。
+
+### 8. 测验系统实现
+
+测验生成基于课程内容和知识点进行。
+
+**测验生成工作流：**
+1. 收集课程上下文（课件 + 转录 + 知识点列表）
+2. 调用 AI 生成选择题（可指定题量，默认 5 题）
+3. 题目自动绑定到知识点 ID 和视频时间戳
+4. 返回结构化题目列表
+
+**降级方案：**
+- 若 API 不可用，使用规则生成测验（从课程文本中提取关键句）
+- 降级测验置信度较低，但仍能工作
+
+**答题流程：**
+1. 学生选择选项并提交
+2. 系统自动判分（对比正确答案）
+3. 保存 QuizAttempt 记录（用于统计）
+4. 返回是否正确 + 解析说明 + 视频时间戳
+
+**错题回看：**
+- 答错时前端显示该题的视频时间戳
+- 用户可点击"回看视频"按钮跳转到相关讲解
+
+教师端的错误率分析基于所有 QuizAttempt 记录完成。
+
+### 9. 教师分析实现
+
+教师仪表盘并不是单纯展示静态统计，而是把课程中的多个数据源汇总后进行分析：
+
+- 课程资源统计来自 Course、Slide、Video 和 KnowledgePoint
+- 测验难点分析来自 Quiz 和 QuizAttempt
+- 学生提问统计来自 ChatMessage
+- AI 复习建议来自大模型对以上数据的综合总结
+
+从实现思路上看，这部分属于“数据统计 + AI 文本生成”的组合。前者负责可量化指标，后者负责生成可读建议。
+### 10. 前端交互实现
+
+前端使用 React 18 实现，整体采用组件化架构。前端通过统一的 API 服务层与后端通信（所有请求都集中在 [frontend/src/services/api.js](frontend/src/services/api.js)），组件只关心自己的状态和交互逻辑。
+
+**页面布局（三栏式工作台）：**
+
+| 区域 | 组件 | 主要功能 |
+|:--|:--|:--|
+| 左栏 | SlidesPanel | 课件浏览、知识点显示、跳转视频 |
+| 右上 | VideoPlayer | 视频播放、字幕同步、知识点标记 |
+| 右下 | ChatAssistant + QuizPanel | 问答、测验、错题回看 |
+| 顶部 | Header + CourseSelector | 课程切换、视图切换 |
+| 独立 | TeacherDashboard | 教学分析视图 |
+
+**模块间联动（通过时间戳和知识点 ID）：**
+- 课件知识点点击 → 视频跳转
+- 视频播放进度 → 课件高亮同步
+- AI 问答引用 → 课件/视频跳转
+- 测验错题 → 视频回看
+
+这个设计让不同学习模块通过语义关联而非页面跳转相互通信。
+---
+
+## 六、项目亮点
+
+### 1. 真正把课件和视频连接起来
+
+很多教学平台只能分别上传视频和课件，但它们之间没有语义连接。本项目通过知识点抽取和时间戳对齐，把课件页面和视频讲解真正串联起来，支持从知识点直接跳转到讲解片段。
+
+### 2. 学习、练习和反馈形成闭环
+
+平台不仅提供内容浏览，还支持 AI 问答、自动测验和错题回看。学生可以在同一个界面里完成“看课件 - 看视频 - 问问题 - 做测验 - 纠错复习”的完整流程。
+
+### 3. 教师能看到更有价值的学习分析
+
+教师端不仅给出资源总量，还能看到高错误率知识点、学生提问主题和 AI 复习建议。这比传统 LMS 的完成率统计更接近真实教学需求。
+
+### 4. 有工程兜底机制
+
+系统并不完全依赖 AI 模型，很多功能都有 fallback 方案。例如：
+
+- 知识点抽取失败时使用简化规则生成
+- 视频转录优先使用云端 API，失败后退回本地模型
+- 知识点无法准确对齐时使用基础比例映射
+
+这让系统在开发和部署阶段更稳定，也更容易演示和测试。
 
 ---
 
-## Development Roadmap
+## 七、与传统 LMS 的区别
 
-The platform will be developed in four phases, evolving from a basic MVP to a fully-featured insight engine. This phased approach ensures core synchronization features are perfected before adding advanced analytics.
+| 维度 | 传统 LMS | Sync Learn |
+|:--|:--|:--|
+| 内容导航 | 依赖手动拖动视频进度条 | 从课件知识点直接跳转到视频片段 |
+| 学习反馈 | 只看完成率或提交情况 | 提供测验、错题回看和 AI 解释 |
+| 教师分析 | 统计指标较粗 | 结合知识点错误率和学生提问进行分析 |
+| 问答支持 | 静态 FAQ 或论坛回复 | 基于课程上下文的 AI 问答，并带引用 |
 
-| Phase | Focus |
-|:------|:------|
-| Phase 1 | MVP — Notes upload, video upload, basic playback |
-| Phase 2 | Semantic alignment engine (ASR + OCR + Embedding) |
-| Phase 3 | AI quiz system & wrong-answer backtracking |
-| Phase 4 | Teacher dashboard, heatmaps & AI review briefs |
+---
+
+## 八、开发与部署说明
+
+项目目前使用前后端分离的结构：
+
+- 前端默认通过 `/api` 访问后端接口，开发环境下可由代理转发。
+- 后端通过 Flask 应用工厂初始化，并在启动时创建上传目录和数据库表。
+- 配置项集中在环境变量和 [backend/config.py](backend/config.py) 中，便于在本地或云端部署时切换数据库、OpenAI 接口和上传路径。
+
+项目还包含 Docker、Railway 和 Render 的部署配置文件，说明已经考虑了容器化和云部署场景。
+
+---
+
+## 九、结论
+
+总体而言，本项目已经实现了一个较完整的多模态智能复习平台原型。它的核心不是单独的“视频播放器”或“聊天机器人”，而是把课件、视频、知识点、测验和教师分析统一到同一条学习路径中，并通过 AI 技术把这些内容语义化、结构化和可跳转化。
+
+从技术实现上看，项目采用 React + Flask 的经典前后端架构，结合文件解析、视频转录、知识点抽取、RAG 问答、测验生成和教师分析，形成了一个完整而可扩展的教学辅助系统。这个实现既体现了工程可落地性，也体现了对教学场景实际需求的针对性。
+
+---
+
+## 十、实现总结
+
+平台已完整实现以下核心功能：
+
+**学习管理与交互：**
+- 课程管理（创建、编辑、删除课程）
+- 课件处理（PDF、PPT、PPTX 文本提取与缩略图生成）
+- 视频播放与转录（支持 Whisper API 和本地 faster-whisper）
+- 知识点自动抽取与视频对齐（三层策略确保高可用性）
+
+**AI 辅助学习：**
+- 基于课程上下文的 RAG 问答系统，支持课件与视频引用跳转
+- 自动测验生成与智能判分，支持错题回看
+
+**教学分析：**
+- 教师仪表盘展示课程资源统计、测验难点分析、学生提问主题
+- AI 生成的课程复习建议
+
+**工程可靠性：**
+- 所有关键模块都配备 fallback 机制，确保即使部分外部服务不可用，平台仍能提供基础功能
+- 采用提交重试、缓存和规则生成等多层保障策略
+
+---
+
+## 十一、在线访问与本地快速运行
+
+### 1. 在线访问（Vercel）
+
+项目线上地址：
+
+[https://your-project-name.vercel.app](https://your-project-name.vercel.app)
+
+> 说明：将上面的链接替换为你们最终的 Vercel 部署地址。
+
+### 2. 本地快速运行
+
+#### 方法 A：Docker 一键启动（推荐）
+
+在项目根目录执行：
+
+```bash
+docker compose up --build
+```
+
+#### 方法 B：
+
+backend：
+
+```bash
+cd backend
+pip install -r requirements.txt
+python run.py
+```
+
+frontend
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+启动后访问：
+
+- 前端: `http://localhost:3000`
+- 后端 API: `http://localhost:8000`
 
 ---
