@@ -5,7 +5,7 @@ function Header({ view, onViewChange }) {
   return (
     <header className="header">
       <div className="header-left">
-        <span className="header-logo">🎓</span>
+        <span className="header-logo">SL</span>
         <span className="header-title">Sync Learn</span>
         <span className="header-subtitle">· Multimodal AI Smart Review</span>
       </div>
@@ -14,13 +14,13 @@ function Header({ view, onViewChange }) {
           className={`nav-btn ${view === 'learn' ? 'active' : ''}`}
           onClick={() => onViewChange('learn')}
         >
-          📖 Learn
+          Learn
         </button>
         <button
           className={`nav-btn ${view === 'dashboard' ? 'active' : ''}`}
           onClick={() => onViewChange('dashboard')}
         >
-          📊 Dashboard
+          Dashboard
         </button>
       </nav>
     </header>

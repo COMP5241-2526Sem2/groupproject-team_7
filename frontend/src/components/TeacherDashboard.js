@@ -68,7 +68,7 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
     return (
       <div className="dashboard-container">
         <div className="dashboard-empty">
-          <span className="dashboard-empty-icon">📊</span>
+          <span className="dashboard-empty-icon">ANALYTICS</span>
           <h2>Teacher Dashboard</h2>
           <p>Select a course to view learning analytics.</p>
         </div>
@@ -79,7 +79,7 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
   if (loading) {
     return (
       <div className="dashboard-container">
-        <div className="dashboard-loading">⏳ Loading dashboard data...</div>
+        <div className="dashboard-loading">Loading dashboard data...</div>
       </div>
     );
   }
@@ -87,7 +87,7 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
   return (
     <div className="dashboard-container">
       <div className="dashboard-header">
-        <h2>📊 Teacher Dashboard</h2>
+        <h2>Teacher Dashboard</h2>
         {summary && <span className="dashboard-course">{summary.course_title}</span>}
       </div>
 
@@ -130,7 +130,7 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
       <div className="dashboard-grid">
         {/* Difficulty Analysis */}
         <div className="dashboard-section">
-          <h3>🔴 Top Difficult Knowledge Points</h3>
+          <h3>Top Difficult Knowledge Points</h3>
           {difficulties && difficulties.difficulties.length > 0 ? (
             <div className="difficulty-list">
               {difficulties.difficulties.map((d, i) => (
@@ -155,7 +155,7 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
                         if (onSwitchToLearn) onSwitchToLearn();
                       }}
                     >
-                      🎬 {formatTimestamp(d.video_timestamp)}
+                      Video {formatTimestamp(d.video_timestamp)}
                     </button>
                   )}
                 </div>
@@ -168,7 +168,7 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
 
         {/* Student Chat Insights */}
         <div className="dashboard-section">
-          <h3>💬 Student Questions</h3>
+          <h3>Student Questions</h3>
           {chatInsights && chatInsights.total_questions > 0 ? (
             <>
               <p className="insight-count">{chatInsights.total_questions} questions asked</p>
@@ -189,13 +189,13 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
       {/* AI Review Brief */}
       <div className="dashboard-section review-brief-section">
         <div className="review-brief-header">
-          <h3>🤖 AI Review Brief</h3>
+          <h3>AI Review Brief</h3>
           <button
             className="generate-brief-btn"
             onClick={handleGenerateBrief}
             disabled={generatingBrief}
           >
-            {generatingBrief ? '⏳ Generating...' : '✨ Generate Review Brief'}
+            {generatingBrief ? 'Generating...' : 'Generate Review Brief'}
           </button>
         </div>
         {reviewBrief ? (
