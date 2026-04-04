@@ -1,38 +1,54 @@
-# Stage 1: Build frontend
-FROM node:18-alpine AS frontend-build
-WORKDIR /frontend
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm install --legacy-peer-deps
-COPY frontend/ .
-RUN npm run build
-
-# Stage 2: Backend + serve frontend static files
-FROM python:3.11-slim
+# Backend only (Frontend is in separate Docker service)
+FROM m.daocloud.io/docker.io/library/python:3.11-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev gcc \
-    libmupdf-dev libfreetype6-dev libharfbuzz-dev libjpeg-dev libopenjp2-7-dev \
-    libreoffice-impress --no-install-recommends \
-    ffmpeg && \
+# Install minimal system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      libpq-dev && \
     rm -rf /var/lib/apt/lists/*
+
+# Install only essential FFmpeg (without encoding libraries)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ffmpeg && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install only LibreOffice Impress (minimal install)
+# Skip language packs, gallery, templates to reduce size
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      --no-install-suggests \
+      libreoffice-impress \
+      fonts-noto && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /usr/share/libreoffice/help/* && \
+    rm -rf /usr/share/libreoffice/extensions/*
 
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Pre-download the faster-whisper model so it's cached in the image
+# Pre-download the faster-whisper models so they're cached in the image
 # (avoids lengthy download at runtime on Railway)
-# Use "tiny" by default for fast transcription on limited-CPU cloud platforms
-ARG WHISPER_MODEL=tiny
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8')"
+RUN python - <<'PY'
+from faster_whisper import WhisperModel
+
+for model_size in ['tiny', 'base']:
+  try:
+    print(f'Preloading {model_size} model...')
+    WhisperModel(model_size, device='cpu', compute_type='int8')
+    print(f'✓ Preloaded {model_size} model successfully')
+  except Exception as exc:
+    # Do not fail image build when external model registry is temporarily unavailable.
+    print(f'WARNING: skipping {model_size} model pre-download due to: {exc}')
+PY
 
 COPY backend/ .
-COPY --from=frontend-build /frontend/build ./static_frontend
 
 RUN mkdir -p uploads/slides/thumbnails uploads/videos
 
-EXPOSE ${PORT:-5000}
+EXPOSE 5000
 
 ENV PORT=${PORT:-5000}
 CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 1800 --log-level info --access-logfile - --error-logfile - run:app

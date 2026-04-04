@@ -1,8 +1,7 @@
-version: "3.8"
-
 services:
   db:
-    image: postgres:16-alpine
+    image: m.daocloud.io/docker.io/library/postgres:16-alpine
+    container_name: synclearn-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: synclearn
@@ -10,12 +9,22 @@ services:
       POSTGRES_DB: synclearn
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks:
+      - synclearn-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synclearn"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   app:
     build: .
+    container_name: synclearn-app
     restart: unless-stopped
     depends_on:
       - db
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql://synclearn:synclearn@db:5432/synclearn
       SECRET_KEY: change-this-in-production
@@ -26,11 +35,48 @@ services:
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
       OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
       OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      NO_PROXY: localhost,127.0.0.1,db
     volumes:
       - uploads:/app/uploads
     ports:
       - "5000:5000"
+    networks:
+      - synclearn-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/courses"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      cache_from:
+        - groupproject-team_7-web:latest
+    container_name: synclearn-web
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+      REACT_APP_API_URL: http://localhost:5000/api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - synclearn-network
+    stdin_open: true
+    tty: true
+    entrypoint: ["sh", "/app/entrypoint.sh"]
 
 volumes:
   pgdata:
   uploads:
+
+networks:
+  synclearn-network:
+    driver: bridge

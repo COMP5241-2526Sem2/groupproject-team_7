@@ -26,7 +26,7 @@ def _chat_model():
 
 
 def _gather_course_context(course_id, max_chars=12000):
-    """Gather all slide text and video transcript content for a course as RAG context."""
+    """Gather slide text for a course as RAG context."""
     slides = (
         Slide.query.filter_by(course_id=course_id)
         .order_by(Slide.created_at.asc())
@@ -44,34 +44,6 @@ def _gather_course_context(course_id, max_chars=12000):
             entry = f"[{slide.original_filename}, Page {page.page_number}]\n{text}"
             if total + len(entry) > max_chars * 0.7:
                 parts.append("...(remaining slide content truncated)")
-                break
-            parts.append(entry)
-            total += len(entry)
-
-    # Video transcript content
-    from app.models.video import Video
-    from app.models.video_transcript import VideoTranscript
-
-    videos = Video.query.filter_by(course_id=course_id).order_by(Video.created_at.asc()).all()
-    for video in videos:
-        segments = (
-            VideoTranscript.query
-            .filter_by(video_id=video.id)
-            .order_by(VideoTranscript.start_time)
-            .all()
-        )
-        if not segments:
-            continue
-
-        for seg in segments:
-            text = seg.text.strip()
-            if not text:
-                continue
-            minutes = int(seg.start_time // 60)
-            seconds = int(seg.start_time % 60)
-            entry = f"[{video.original_filename}, {minutes}:{seconds:02d}]\n{text}"
-            if total + len(entry) > max_chars:
-                parts.append("...(remaining transcript content truncated)")
                 break
             parts.append(entry)
             total += len(entry)
@@ -101,7 +73,6 @@ def generate_chat_response(course_id, user_message, chat_history):
         "Guidelines:\n"
         "- Provide clear, educational answers based on the materials.\n"
         "- When referencing slide content, cite as [filename, Page X].\n"
-        "- When referencing video content, cite as [filename, M:SS].\n"
         "- If a question is outside the course scope, say so politely.\n"
         "- Keep answers concise but thorough.\n"
         "- Use the same language as the student's question."
@@ -132,7 +103,7 @@ def generate_chat_response(course_id, user_message, chat_history):
 
 
 def _parse_citations(text):
-    """Extract [filename, Page X] and [filename, M:SS] references from AI response."""
+    """Extract [filename, Page X] references from AI response."""
     import re
     citations = []
     # Slide citations: [filename, Page X]
@@ -143,18 +114,6 @@ def _parse_citations(text):
             "source": match.group(1).strip(),
             "page": int(match.group(2)),
             "label": f"{match.group(1).strip()}, Page {match.group(2)}",
-        })
-    # Video citations: [filename, M:SS] or [filename, MM:SS]
-    video_pattern = r'\[([^,\]]+),\s*(\d+):(\d{2})\]'
-    for match in re.finditer(video_pattern, text):
-        minutes = int(match.group(2))
-        seconds = int(match.group(3))
-        timestamp = minutes * 60 + seconds
-        citations.append({
-            "type": "video",
-            "source": match.group(1).strip(),
-            "timestamp": timestamp,
-            "label": f"{match.group(1).strip()}, {match.group(2)}:{match.group(3)}",
         })
     return citations
 

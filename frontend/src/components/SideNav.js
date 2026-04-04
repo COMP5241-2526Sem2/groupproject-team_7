@@ -8,22 +8,24 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 
-function SideNav({ view, onViewChange, onFocusCourses, onOpenAiTab }) {
+function SideNav({ view, onViewChange, onFocusCourses, onOpenAiTab, role }) {
   const items = [
     {
       id: 'home',
       icon: Home,
-      label: 'Home',
-      onClick: () => onViewChange('learn'),
-      active: view === 'learn',
+      label: role === 'teacher' ? 'Resource Home' : 'Home',
+      onClick: () => onViewChange(role === 'teacher' ? 'teacher-home' : 'learn'),
+      active: role === 'teacher' ? view === 'teacher-home' : view === 'learn',
     },
-    {
-      id: 'dashboard',
-      icon: LayoutDashboard,
-      label: 'Instructor Dashboard',
-      onClick: () => onViewChange('dashboard'),
-      active: view === 'dashboard',
-    },
+    ...(role === 'teacher'
+      ? [{
+          id: 'dashboard',
+          icon: LayoutDashboard,
+          label: 'Learning Dashboard',
+          onClick: () => onViewChange('dashboard'),
+          active: view === 'dashboard',
+        }]
+      : []),
     {
       id: 'courses',
       icon: GraduationCap,

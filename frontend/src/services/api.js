@@ -1,10 +1,34 @@
 import axios from 'axios';
 
-const API_BASE = process.env.REACT_APP_API_URL || '/api';
+// 前端运行在浏览器中，localhost 总是指向宿主机
+// Docker 或本地都使用同一个 localhost:5000 地址
+const API_BASE = 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' },
+});
+
+api.interceptors.request.use((config) => {
+  try {
+    let role = localStorage.getItem('synclearn-role');
+    const studentId = localStorage.getItem('synclearn-student-id');
+    if (!role) {
+      // Demo-friendly default to avoid auth-required failures when role was never set.
+      role = 'teacher';
+      localStorage.setItem('synclearn-role', role);
+    }
+    if (role) {
+      config.headers['X-User-Role'] = role;
+    }
+    if (role === 'student' && studentId) {
+      config.headers['X-Student-Id'] = studentId;
+      config.headers['X-User-Id'] = studentId;
+    }
+  } catch {
+    // ignore storage access issues
+  }
+  return config;
 });
 
 // --- Courses ---
@@ -79,6 +103,8 @@ export const uploadVideo = async (courseId, file, onUploadProgress) => {
 export const getVideosByCourse = (courseId) => api.get(`/videos/course/${courseId}`);
 export const getVideo = (id) => api.get(`/videos/${id}`);
 export const deleteVideo = (id) => api.delete(`/videos/${id}`);
+export const createVideoLink = (courseId, videoUrl, title = '') =>
+  api.post('/videos/link', { course_id: courseId, video_url: videoUrl, title });
 export const getVideoStreamUrl = (filename) => `${API_BASE}/videos/stream/${filename}`;
 export const transcribeVideo = (videoId) => api.post(`/videos/${videoId}/transcribe`);
 export const getTranscribeStatus = (videoId) => api.get(`/videos/${videoId}/transcribe/status`);
@@ -92,8 +118,13 @@ export const sendChatMessage = (courseId, content) =>
 export const clearChat = (courseId) => api.delete(`/chat/${courseId}`);
 
 // --- Knowledge Points ---
-export const extractKnowledgePoints = (slideId) =>
-  api.post(`/knowledge-points/extract/${slideId}`);
+export const extractKnowledgePoints = (slideId, force = false, videoId = null) => {
+  const params = new URLSearchParams();
+  if (force) params.set('force', '1');
+  if (videoId != null) params.set('video_id', String(videoId));
+  const query = params.toString();
+  return api.post(`/knowledge-points/extract/${slideId}${query ? `?${query}` : ''}`);
+};
 export const getExtractKPStatus = (slideId) =>
   api.get(`/knowledge-points/extract/${slideId}/status`);
 export const getKnowledgePointsByCourse = (courseId) =>

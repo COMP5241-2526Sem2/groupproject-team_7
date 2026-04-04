@@ -5,6 +5,7 @@ from app.models.quiz import Quiz, QuizAttempt
 from app.models.knowledge_point import KnowledgePoint
 from app.models.slide import Slide
 from app.models.chat import ChatMessage
+from app.auth_utils import require_teacher
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -12,6 +13,10 @@ dashboard_bp = Blueprint("dashboard", __name__)
 @dashboard_bp.route("/summary/<int:course_id>", methods=["GET"])
 def course_summary(course_id):
     """Get overall course statistics for the teacher dashboard."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     course = db.session.get(Course, course_id)
     if not course:
         return jsonify({"error": "Course not found"}), 404
@@ -57,6 +62,10 @@ def course_summary(course_id):
 @dashboard_bp.route("/difficulty/<int:course_id>", methods=["GET"])
 def difficulty_analysis(course_id):
     """Get top difficult knowledge points based on quiz error rates."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     quizzes = Quiz.query.filter_by(course_id=course_id).all()
     if not quizzes:
         return jsonify({"difficulties": []})
@@ -119,6 +128,10 @@ def difficulty_analysis(course_id):
 @dashboard_bp.route("/chat-insights/<int:course_id>", methods=["GET"])
 def chat_insights(course_id):
     """Analyze student chat questions to identify common topics and concerns."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     messages = (
         ChatMessage.query
         .filter_by(course_id=course_id, role="user")
@@ -147,6 +160,10 @@ def chat_insights(course_id):
 @dashboard_bp.route("/review-brief/<int:course_id>", methods=["POST"])
 def generate_review_brief(course_id):
     """Generate an AI-powered review brief summarizing learning gaps."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     course = db.session.get(Course, course_id)
     if not course:
         return jsonify({"error": "Course not found"}), 404

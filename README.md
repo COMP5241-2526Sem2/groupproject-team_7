@@ -16,7 +16,7 @@ Currently, students face a disconnection between lecture notes and videos during
 
 ## Core Objectives
 
-- **Semantic Alignment**: Automatically match knowledge points in notes with key video frames for instant navigation
+- **Semantic Alignment**: Match knowledge points in notes with key video frames for instant navigation
 - **Immediate Feedback**: Enable "learning by doing" through AI-generated quizzes
 - **Learning Insights**: Provide teachers with video heatmaps and AI-generated review briefs
 
@@ -38,7 +38,7 @@ The platform features a **three-panel layout** that integrates the entire learni
 
 ### 1. Notes-Video Synchronization
 
-The system leverages an AI engine (ASR + OCR + Embedding) to achieve precise alignment:
+The system leverages an AI engine (OCR + Embedding) to support alignment:
 
 - **Hover Interaction**: Hovering over a knowledge point in the notes reveals a "Jump to Explanation" icon
 - **Instant Navigation**: Clicking the icon jumps the video to the corresponding timestamp (accurate to the second)
@@ -80,7 +80,7 @@ The system automatically generates a natural language summary that identifies:
 
 ### Core Algorithms
 
-- **Semantic Alignment Engine**: ASR (speech-to-text) + OCR + Embedding for knowledge point-to-video frame matching
+- **Semantic Alignment Engine**: OCR + Embedding for knowledge point-to-video frame matching
 - **RAG Technology**: AI assistant retrieves information from course materials to provide answers with source citations
 
 ### Backend Architecture
@@ -113,6 +113,36 @@ The platform adopts a left-right split-screen layout, with the video player posi
 
 - **Layout**: Three-panel structure — left notes area (anchor highlighting) + top-right video player + bottom-right AI assistant
 - **Figma Prototype**: [https://batch-equity-33459089.figma.site](https://batch-equity-33459089.figma.site)
+
+---
+
+## Docker Run
+
+This repository includes a production Docker setup that builds the React frontend into the Flask image and starts PostgreSQL with Compose.
+
+### Prerequisites
+
+- Docker Desktop installed
+- Docker Compose available from the `docker compose` command
+
+### Start the stack
+
+```bash
+# 1) Prepare environment variables
+cp .env.example .env
+
+# 2) Build and start
+docker compose up --build
+```
+
+### Services
+
+- App/API: `http://localhost:5000`
+- Database: internal Compose network service `db:5432`
+
+### Notes
+
+- Uploaded files are persisted through the named `uploads` volume.
 
 ---
 

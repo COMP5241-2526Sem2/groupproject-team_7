@@ -1,16 +1,22 @@
-FROM node:18-alpine AS build
+FROM m.daocloud.io/docker.io/library/node:18-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+# 复制package文件
+COPY package*.json ./
 
+# 安装依赖（跳过audit以加快速度）
+RUN npm ci --legacy-peer-deps --prefer-offline --no-audit 2>/dev/null || npm install --legacy-peer-deps
+
+# 复制源代码
 COPY . .
-RUN npm run build
 
-# Production — serve with nginx
-FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+# 设置环境变量
+ENV REACT_APP_API_URL=/api
+ENV WATCHPACK_POLLING=true
+
+# 暴露开发服务器端口
+EXPOSE 3000
+
+# 启动开发服务器（自动代理/api到后端）
+CMD ["npm", "start"]

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen } from 'lucide-react';
 
-function CourseSelector({ courses, currentCourse, onSelect, onCreate }) {
+function CourseSelector({ courses, currentCourse, onSelect, onCreate, allowCreate = true }) {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
@@ -37,7 +37,7 @@ function CourseSelector({ courses, currentCourse, onSelect, onCreate }) {
           </option>
         ))}
       </select>
-      {!showCreate ? (
+      {allowCreate && !showCreate ? (
         <button
           type="button"
           onClick={() => setShowCreate(true)}
@@ -45,7 +45,7 @@ function CourseSelector({ courses, currentCourse, onSelect, onCreate }) {
         >
           + New Course
         </button>
-      ) : (
+      ) : allowCreate ? (
         <div className="flex flex-wrap items-center gap-2">
           <input
             className="sync-input-cmd w-40 text-xs"
@@ -70,7 +70,7 @@ function CourseSelector({ courses, currentCourse, onSelect, onCreate }) {
             Cancel
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

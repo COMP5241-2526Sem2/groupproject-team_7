@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   getDashboardSummary,
   getDifficultyAnalysis,
@@ -15,18 +15,7 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
   const [generatingBrief, setGeneratingBrief] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    if (courseId) {
-      loadDashboardData();
-    } else {
-      setSummary(null);
-      setDifficulties(null);
-      setChatInsights(null);
-      setReviewBrief('');
-    }
-  }, [courseId]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     setLoading(true);
     try {
       const [sumRes, diffRes, chatRes] = await Promise.all([
@@ -42,7 +31,19 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [courseId]);
+
+  useEffect(() => {
+    if (courseId) {
+      loadDashboardData();
+    } else {
+      setSummary(null);
+      setDifficulties(null);
+      setChatInsights(null);
+      setReviewBrief('');
+      setLoading(false);
+    }
+  }, [courseId, loadDashboardData]);
 
   const handleGenerateBrief = async () => {
     if (!courseId || generatingBrief) return;
@@ -68,9 +69,8 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
     return (
       <div className="dashboard-container">
         <div className="dashboard-empty">
-          <span className="dashboard-empty-icon">ANALYTICS</span>
-          <h2>Teacher Dashboard</h2>
-          <p>Select a course to view learning analytics.</p>
+          <h2>Learning Behavior Dashboard</h2>
+          <p>Select a course to view student learning behavior and analytics.</p>
         </div>
       </div>
     );
@@ -87,11 +87,13 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
   return (
     <div className="dashboard-container">
       <div className="dashboard-header">
-        <h2>Teacher Dashboard</h2>
+        <div>
+          <h2>Learning Behavior Dashboard</h2>
+          <p className="dashboard-subtitle">Observe student progress, difficulties, and review signals in one place.</p>
+        </div>
         {summary && <span className="dashboard-course">{summary.course_title}</span>}
       </div>
 
-      {/* Summary Cards */}
       {summary && (
         <div className="dashboard-cards">
           <div className="dash-card">
@@ -128,7 +130,6 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
       )}
 
       <div className="dashboard-grid">
-        {/* Difficulty Analysis */}
         <div className="dashboard-section">
           <h3>Top Difficult Knowledge Points</h3>
           {difficulties && difficulties.difficulties.length > 0 ? (
@@ -166,7 +167,6 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
           )}
         </div>
 
-        {/* Student Chat Insights */}
         <div className="dashboard-section">
           <h3>Student Questions</h3>
           {chatInsights && chatInsights.total_questions > 0 ? (
@@ -186,7 +186,6 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
         </div>
       </div>
 
-      {/* AI Review Brief */}
       <div className="dashboard-section review-brief-section">
         <div className="review-brief-header">
           <h3>AI Review Brief</h3>

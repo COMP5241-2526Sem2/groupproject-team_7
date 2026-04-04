@@ -22,6 +22,13 @@ class Config:
     OPENAI_BASE_URL = os.environ.get("OPENAI_BASE_URL", "")  # e.g. https://models.inference.ai.azure.com
     OPENAI_CHAT_MODEL = os.environ.get("OPENAI_CHAT_MODEL", "gpt-4o-mini")
     OPENAI_EMBEDDING_MODEL = os.environ.get("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small")
+    FASTER_WHISPER_MODEL = os.environ.get("FASTER_WHISPER_MODEL", "tiny")
+    FASTER_WHISPER_DEVICE = os.environ.get("FASTER_WHISPER_DEVICE", "cpu")
+    FASTER_WHISPER_COMPUTE_TYPE = os.environ.get("FASTER_WHISPER_COMPUTE_TYPE", "int8")
+    FASTER_WHISPER_BEAM_SIZE = int(os.environ.get("FASTER_WHISPER_BEAM_SIZE", "1"))
+    FASTER_WHISPER_VAD_FILTER = os.environ.get("FASTER_WHISPER_VAD_FILTER", "true").lower() == "true"
+    FASTER_WHISPER_CACHE_DIR = os.environ.get("FASTER_WHISPER_CACHE_DIR", "./whisper_models")
+    TRANSCRIBE_USE_LOCAL_ONLY = os.environ.get("TRANSCRIBE_USE_LOCAL_ONLY", "false").lower() == "true"
 
 
 class DevelopmentConfig(Config):

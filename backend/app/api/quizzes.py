@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models.quiz import Quiz, QuizAttempt
 from app.models.course import Course
+from app.auth_utils import require_teacher, require_authenticated, get_request_role, get_request_student_id
 from app.services.ai_service import generate_quizzes_for_course
 
 quizzes_bp = Blueprint("quizzes", __name__)
@@ -9,7 +10,11 @@ quizzes_bp = Blueprint("quizzes", __name__)
 
 @quizzes_bp.route("/generate/<int:course_id>", methods=["POST"])
 def generate_quizzes(course_id):
-    """Generate quiz questions for a course using AI."""
+    """Generate quiz questions for a course using AI (students and teachers)."""
+    forbidden = require_authenticated()
+    if forbidden:
+        return forbidden
+
     course = db.session.get(Course, course_id)
     if not course:
         return jsonify({"error": "Course not found"}), 404
@@ -48,7 +53,7 @@ def generate_quizzes(course_id):
 
 @quizzes_bp.route("/course/<int:course_id>", methods=["GET"])
 def get_quizzes(course_id):
-    """Get all quizzes for a course."""
+    """Get all quizzes for a course (public)."""
     quizzes = (
         Quiz.query.filter_by(course_id=course_id)
         .order_by(Quiz.created_at.desc())
@@ -59,7 +64,7 @@ def get_quizzes(course_id):
 
 @quizzes_bp.route("/<int:quiz_id>/attempt", methods=["POST"])
 def submit_attempt(quiz_id):
-    """Submit an answer for a quiz question."""
+    """Submit an answer for a quiz question (student and public)."""
     quiz = db.session.get(Quiz, quiz_id)
     if not quiz:
         return jsonify({"error": "Quiz not found"}), 404
@@ -70,6 +75,9 @@ def submit_attempt(quiz_id):
 
     selected = data["selected_answer"]
     is_correct = selected.upper() == quiz.correct_answer.upper()
+
+    # Track student ID if available
+    student_id = get_request_student_id() if get_request_role() == "student" else None
 
     attempt = QuizAttempt(
         quiz_id=quiz_id,
@@ -89,6 +97,11 @@ def submit_attempt(quiz_id):
 
 @quizzes_bp.route("/<int:quiz_id>", methods=["DELETE"])
 def delete_quiz(quiz_id):
+    """Delete a single quiz question (teacher only)."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     quiz = db.session.get(Quiz, quiz_id)
     if not quiz:
         return jsonify({"error": "Quiz not found"}), 404
@@ -99,7 +112,11 @@ def delete_quiz(quiz_id):
 
 @quizzes_bp.route("/course/<int:course_id>", methods=["DELETE"])
 def clear_quizzes(course_id):
-    """Delete all quizzes for a course."""
+    """Delete all quizzes for a course (teacher only)."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     quizzes = Quiz.query.filter_by(course_id=course_id).all()
     for q in quizzes:
         db.session.delete(q)  # triggers cascade delete of QuizAttempts
@@ -109,7 +126,11 @@ def clear_quizzes(course_id):
 
 @quizzes_bp.route("/stats/<int:course_id>", methods=["GET"])
 def quiz_stats(course_id):
-    """Get quiz performance statistics for a course (for teacher dashboard)."""
+    """Get quiz performance statistics for a course (teacher only, for dashboard)."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     quizzes = Quiz.query.filter_by(course_id=course_id).all()
     if not quizzes:
         return jsonify({"total_quizzes": 0, "questions": []})
