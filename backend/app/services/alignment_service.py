@@ -119,7 +119,7 @@ def embed_slide_pages(slide_id, client=None):
 # ---------------------------------------------------------------------------
 
 def _transcribe_model():
-    return current_app.config.get("FASTER_WHISPER_MODEL", "base")
+    return current_app.config.get("FASTER_WHISPER_MODEL", "tiny")
 
 
 def _response_segments(response):

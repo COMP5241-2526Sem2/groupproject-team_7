@@ -1,4 +1,24 @@
-# Backend only (Frontend is in separate Docker service)
+# clean the cache of whisper models
+RUN rm -rf ./whisper_models
+
+# Stage 1: Build frontend
+FROM node:18-alpine AS frontend-build
+
+WORKDIR /frontend
+
+# Copy package files
+COPY frontend/package.json frontend/package-lock.json ./
+
+# Install dependencies
+RUN npm install --legacy-peer-deps
+
+# Copy frontend source
+COPY frontend/ .
+
+# Build the React application
+RUN npm run build
+
+# Stage 2: Backend + serve frontend static files
 FROM m.daocloud.io/docker.io/library/python:3.11-slim
 
 WORKDIR /app
@@ -26,6 +46,7 @@ RUN apt-get update && \
     rm -rf /usr/share/libreoffice/help/* && \
     rm -rf /usr/share/libreoffice/extensions/*
 
+# Copy and install Python dependencies
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -38,14 +59,19 @@ for model_size in ['tiny', 'base']:
   try:
     print(f'Preloading {model_size} model...')
     WhisperModel(model_size, device='cpu', compute_type='int8')
-    print(f'✓ Preloaded {model_size} model successfully')
+    print(f'Preloaded {model_size} model successfully')
   except Exception as exc:
     # Do not fail image build when external model registry is temporarily unavailable.
     print(f'WARNING: skipping {model_size} model pre-download due to: {exc}')
 PY
 
+# Copy backend application code
 COPY backend/ .
 
+# Copy built frontend static files from stage 1
+COPY --from=frontend-build /frontend/build ./static_frontend
+
+# Create necessary upload directories
 RUN mkdir -p uploads/slides/thumbnails uploads/videos
 
 EXPOSE 5000
