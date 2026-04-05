@@ -1,8 +1,12 @@
 from flask import Blueprint, request, jsonify
-from sqlalchemy import text
+from sqlalchemy import or_
 from app import db
 from app.models.course import Course
 from app.models.knowledge_point import KnowledgePoint
+from app.models.quiz import Quiz, QuizAttempt
+from app.models.slide import SlidePage
+from app.models.video_transcript import VideoTranscript
+from app.models.chat import ChatMessage
 from app.auth_utils import require_teacher
 
 courses_bp = Blueprint("courses", __name__)
@@ -69,29 +73,64 @@ def delete_course(course_id):
         return jsonify({"error": "Course not found"}), 404
 
     try:
-        # Delete knowledge points for videos in this course using direct SQL
-        # to bypass ORM session tracking issues
         video_ids = [v.id for v in course.videos]
-        if video_ids:
-            db.session.execute(
-                text("DELETE FROM knowledge_points WHERE video_id IN :video_ids"),
-                {"video_ids": tuple(video_ids)}
-            )
-        
-        # Delete knowledge points for slides in this course
-        from app.models.slide import Slide
         slide_ids = [s.id for s in course.slides]
-        if slide_ids:
-            db.session.execute(
-                text("""DELETE FROM knowledge_points WHERE slide_page_id IN (
-                    SELECT id FROM slide_pages WHERE slide_id IN :slide_ids
-                )"""),
-                {"slide_ids": tuple(slide_ids)}
+
+        kp_ids = []
+        if video_ids or slide_ids:
+            filters = []
+            if video_ids:
+                filters.append(KnowledgePoint.video_id.in_(video_ids))
+            if slide_ids:
+                slide_page_ids = [
+                    row[0]
+                    for row in db.session.query(SlidePage.id)
+                    .filter(SlidePage.slide_id.in_(slide_ids))
+                    .all()
+                ]
+                if slide_page_ids:
+                    filters.append(KnowledgePoint.slide_page_id.in_(slide_page_ids))
+
+            if filters:
+                kp_ids = [
+                    row[0]
+                    for row in db.session.query(KnowledgePoint.id)
+                    .filter(or_(*filters))
+                    .all()
+                ]
+
+        # Delete dependent quizzes (and attempts) before deleting knowledge points.
+        if kp_ids:
+            quiz_ids = [
+                row[0]
+                for row in db.session.query(Quiz.id)
+                .filter(Quiz.knowledge_point_id.in_(kp_ids))
+                .all()
+            ]
+            if quiz_ids:
+                QuizAttempt.query.filter(QuizAttempt.quiz_id.in_(quiz_ids)).delete(
+                    synchronize_session=False
+                )
+                Quiz.query.filter(Quiz.id.in_(quiz_ids)).delete(
+                    synchronize_session=False
+                )
+
+            KnowledgePoint.query.filter(KnowledgePoint.id.in_(kp_ids)).delete(
+                synchronize_session=False
             )
-        
-        db.session.commit()
-        
-        # Now delete the course (which will cascade delete slides and videos)
+
+        # Delete dependent transcripts before deleting videos via course cascade.
+        if video_ids:
+            VideoTranscript.query.filter(VideoTranscript.video_id.in_(video_ids)).delete(
+                synchronize_session=False
+            )
+
+        # Delete chat messages for this course
+        ChatMessage.query.filter(ChatMessage.course_id == course_id).delete(
+            synchronize_session=False
+        )
+
+        # Now delete the course (slides/videos still cascade through ORM relationships).
         db.session.delete(course)
         db.session.commit()
         return jsonify({"message": "Course deleted"})

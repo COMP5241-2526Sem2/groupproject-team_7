@@ -17,6 +17,7 @@ class Course(db.Model):
 
     slides = db.relationship("Slide", backref="course", lazy=True, cascade="all, delete-orphan")
     videos = db.relationship("Video", backref="course", lazy=True, cascade="all, delete-orphan")
+    chat_messages = db.relationship("ChatMessage", backref="course", lazy=True, cascade="all, delete-orphan")
 
     def to_dict(self):
         return {

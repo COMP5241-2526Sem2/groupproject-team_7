@@ -168,16 +168,56 @@ function TeacherDashboard({ courseId, onJumpToTimestamp, onSwitchToLearn }) {
         </div>
 
         <div className="dashboard-section">
-          <h3>Student Questions</h3>
-          {chatInsights && chatInsights.total_questions > 0 ? (
+          <h3>Student Questions (High Frequency Analysis)</h3>
+          {chatInsights && chatInsights.valid_questions > 0 ? (
             <>
-              <p className="insight-count">{chatInsights.total_questions} questions asked</p>
-              <div className="questions-list">
-                {chatInsights.recent_questions.map((q, i) => (
-                  <div key={i} className="question-item">
-                    <span className="question-text">{q.content}</span>
+              <div className="questions-stats">
+                <div className="stat-item">
+                  <span className="stat-label">Total questions asked:</span>
+                  <span className="stat-value">{chatInsights.total_questions}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Valid questions (filtered):</span>
+                  <span className="stat-value">{chatInsights.valid_questions}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Trivial questions filtered:</span>
+                  <span className="stat-value highlight-warning">{chatInsights.filtered_out}</span>
+                </div>
+                <div className="stat-item">
+                  <span className="stat-label">Unique question topics:</span>
+                  <span className="stat-value">{chatInsights.question_stats.unique_question_topics}</span>
+                </div>
+              </div>
+              
+              <div className="high-frequency-questions">
+                <h4>Top High-Frequency Questions:</h4>
+                {chatInsights.high_frequency_questions.length > 0 ? (
+                  <div className="questions-list">
+                    {chatInsights.high_frequency_questions.map((q, i) => (
+                      <div key={i} className="question-item frequency-item">
+                        <div className="frequency-badge">{q.frequency}x</div>
+                        <div className="question-content">
+                          <span className="question-text">{q.question}</span>
+                          {q.examples && q.examples.length > 1 && (
+                            <details className="question-variations">
+                              <summary className="variations-toggle">
+                                Show {q.examples.length} variations
+                              </summary>
+                              <ul className="variations-list">
+                                {q.examples.map((ex, j) => (
+                                  <li key={j}>{ex}</li>
+                                ))}
+                              </ul>
+                            </details>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                ) : (
+                  <p className="dashboard-no-data">No high-frequency questions found.</p>
+                )}
               </div>
             </>
           ) : (

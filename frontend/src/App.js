@@ -212,7 +212,8 @@ function App() {
   };
 
   if (!role) {
-    return <RoleGate onChoose={handleChooseRole} />;
+    const detectedId = normalizeStudentId(detectStudentId());
+    return <RoleGate onChoose={handleChooseRole} detectedStudentId={detectedId} />;
   }
 
   return (

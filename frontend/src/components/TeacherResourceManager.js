@@ -10,6 +10,7 @@ import {
   getVideosByCourse,
   createVideoLink,
   deleteVideo,
+  getExtractKPStatus,
 } from '../services/api';
 import '../styles/TeacherDashboard.css';
 
@@ -44,6 +45,7 @@ function TeacherResourceManager({ courseId, onCoursesChanged, onCourseCreated, o
   const [resourceVideos, setResourceVideos] = useState([]);
   const [loadingResources, setLoadingResources] = useState(false);
   const [uploadingSlide, setUploadingSlide] = useState(false);
+  const [extractionProgress, setExtractionProgress] = useState(null);
   const [addingVideoLink, setAddingVideoLink] = useState(false);
   const [videoLinkUrl, setVideoLinkUrl] = useState('');
   const [videoLinkTitle, setVideoLinkTitle] = useState('');
@@ -180,12 +182,70 @@ function TeacherResourceManager({ courseId, onCoursesChanged, onCourseCreated, o
     event.target.value = '';
     if (!file || !courseId || uploadingSlide) return;
     setUploadingSlide(true);
+    setExtractionProgress(null);
+    
     try {
-      await uploadSlide(courseId, file);
+      const uploadRes = await uploadSlide(courseId, file);
+      const slideId = uploadRes.data?.id;
+      
+      // Start polling for extraction progress
+      if (slideId) {
+        const startTime = Date.now();
+        let pollCount = 0;
+        const MAX_POLLS = 180; // Max 3 minutes of polling (180 * 1 second)
+        
+        const pollStatus = async () => {
+          try {
+            const statusRes = await getExtractKPStatus(slideId);
+            const status = statusRes.data || {};
+            
+            if (status.state === 'running') {
+              setExtractionProgress({
+                status: 'extracting',
+                progress: status.progress || 0,
+                total: status.total || 0,
+                message: status.message || 'Extracting knowledge points...',
+              });
+              
+              pollCount++;
+              if (pollCount < MAX_POLLS) {
+                setTimeout(pollStatus, 1000); // Poll every 1 second
+              } else {
+                throw new Error('Extraction timeout - still processing');
+              }
+            } else if (status.state === 'done') {
+              const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+              const kpCount = status.created || 0;
+              setExtractionProgress({
+                status: 'done',
+                message: `Complete! Extracted ${kpCount} knowledge points in ${elapsed}s`,
+              });
+              
+              // Clear progress message after 3 seconds
+              setTimeout(() => {
+                setExtractionProgress(null);
+              }, 3000);
+            } else if (status.state === 'error') {
+              throw new Error(status.error || 'Extraction failed');
+            }
+          } catch (err) {
+            console.error('Status poll error:', err);
+            setExtractionProgress({
+              status: 'error',
+              message: err.message || 'Failed to track extraction',
+            });
+          }
+        };
+        
+        // Start polling after a short delay to allow job to start
+        setTimeout(pollStatus, 500);
+      }
+      
       await Promise.all([loadResourceData(courseId), refreshCourses()]);
     } catch (err) {
       console.error('Slide upload failed:', err);
       alert('Failed to upload document: ' + (err.response?.data?.error || err.message));
+      setExtractionProgress(null);
     } finally {
       setUploadingSlide(false);
     }
@@ -418,6 +478,51 @@ function TeacherResourceManager({ courseId, onCoursesChanged, onCourseCreated, o
                 />
                 {uploadingSlide ? 'Uploading...' : 'Upload Document'}
               </label>
+              
+              {extractionProgress && (
+                <div style={{
+                  marginTop: '12px',
+                  padding: '12px',
+                  backgroundColor: extractionProgress.status === 'error' ? '#fee' : 
+                                   extractionProgress.status === 'done' ? '#efe' : '#f0f7ff',
+                  border: `1px solid ${
+                    extractionProgress.status === 'error' ? '#fcc' : 
+                    extractionProgress.status === 'done' ? '#cfc' : '#cce'
+                  }`,
+                  borderRadius: '4px',
+                  fontSize: '14px',
+                }}>
+                  <div style={{ color: '#666', marginBottom: '8px' }}>
+                    {extractionProgress.message}
+                  </div>
+                  {extractionProgress.status === 'extracting' && extractionProgress.total > 0 && (
+                    <div style={{
+                      display: 'flex',
+                      gap: '8px',
+                      alignItems: 'center',
+                    }}>
+                      <div style={{
+                        flex: 1,
+                        height: '6px',
+                        backgroundColor: '#e0e0e0',
+                        borderRadius: '3px',
+                        overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          height: '100%',
+                          backgroundColor: '#4a90e2',
+                          width: `${(extractionProgress.progress / extractionProgress.total) * 100}%`,
+                          transition: 'width 0.3s ease',
+                        }} />
+                      </div>
+                      <span style={{ fontSize: '12px', color: '#999', minWidth: '40px' }}>
+                        {extractionProgress.progress}/{extractionProgress.total}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <div className="resource-list">
                 {resourceSlides.length > 0 ? (
                   resourceSlides.map((slide) => (

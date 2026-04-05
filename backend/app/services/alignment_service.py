@@ -263,7 +263,7 @@ def transcribe_video(video_id, progress_cb=None):
     db.session.commit()
 
     # Skip OpenAI API and use local transcription directly
-    use_local_only = current_app.config.get("TRANSCRIBE_USE_LOCAL_ONLY", False)
+    use_local_only = current_app.config.get("TRANSCRIBE_USE_LOCAL_ONLY", True)
     if isinstance(use_local_only, str):
         use_local_only = use_local_only.lower() == "true"
     transcript_segments = None

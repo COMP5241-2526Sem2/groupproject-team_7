@@ -6,6 +6,8 @@ from werkzeug.utils import secure_filename
 from app import db
 from app.models.slide import Slide, SlidePage
 from app.models.course import Course
+from app.models.knowledge_point import KnowledgePoint
+from app.models.quiz import Quiz, QuizAttempt
 from app.auth_utils import require_teacher
 
 slides_bp = Blueprint("slides", __name__)
@@ -248,6 +250,28 @@ def delete_slide(slide_id):
     if not slide:
         return jsonify({"error": "Slide not found"}), 404
 
+    # Get all slide pages associated with this slide
+    slide_pages = SlidePage.query.filter_by(slide_id=slide_id).all()
+    
+    # 1. Delete QuizAttempts that reference Quizzes related to this slide's knowledge points
+    for page in slide_pages:
+        kps = KnowledgePoint.query.filter_by(slide_page_id=page.id).all()
+        for kp in kps:
+            quizzes = Quiz.query.filter_by(knowledge_point_id=kp.id).all()
+            for quiz in quizzes:
+                QuizAttempt.query.filter_by(quiz_id=quiz.id).delete()
+    
+    # 2. Delete Quizzes
+    for page in slide_pages:
+        kps = KnowledgePoint.query.filter_by(slide_page_id=page.id).all()
+        for kp in kps:
+            Quiz.query.filter_by(knowledge_point_id=kp.id).delete()
+    
+    # 3. Delete KnowledgePoints
+    for page in slide_pages:
+        KnowledgePoint.query.filter_by(slide_page_id=page.id).delete()
+    
+    # 4. Clean up files
     if os.path.exists(slide.file_path):
         os.remove(slide.file_path)
 
@@ -259,6 +283,7 @@ def delete_slide(slide_id):
     if os.path.isdir(thumbs_dir):
         shutil.rmtree(thumbs_dir, ignore_errors=True)
 
+    # 5. Delete Slide (SlidePage will be cascade deleted)
     db.session.delete(slide)
     db.session.commit()
     return jsonify({"message": "Slide deleted"})

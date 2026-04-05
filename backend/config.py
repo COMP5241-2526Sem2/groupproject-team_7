@@ -4,6 +4,15 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _env_bool(name, default=False):
+    value = os.environ.get(name, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
 class Config:
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key")
     _db_url = os.environ.get(
@@ -26,9 +35,9 @@ class Config:
     FASTER_WHISPER_DEVICE = os.environ.get("FASTER_WHISPER_DEVICE", "cpu")
     FASTER_WHISPER_COMPUTE_TYPE = os.environ.get("FASTER_WHISPER_COMPUTE_TYPE", "int8")
     FASTER_WHISPER_BEAM_SIZE = int(os.environ.get("FASTER_WHISPER_BEAM_SIZE", "1"))
-    FASTER_WHISPER_VAD_FILTER = os.environ.get("FASTER_WHISPER_VAD_FILTER", "true").lower() == "true"
+    FASTER_WHISPER_VAD_FILTER = _env_bool("FASTER_WHISPER_VAD_FILTER", True)
     FASTER_WHISPER_CACHE_DIR = os.environ.get("FASTER_WHISPER_CACHE_DIR", "./whisper_models")
-    TRANSCRIBE_USE_LOCAL_ONLY = os.environ.get("TRANSCRIBE_USE_LOCAL_ONLY", "false").lower() == "true"
+    TRANSCRIBE_USE_LOCAL_ONLY = _env_bool("TRANSCRIBE_USE_LOCAL_ONLY", False)
 
 
 class DevelopmentConfig(Config):

@@ -8,7 +8,7 @@ from app.models.slide import Slide, SlidePage
 from app.models.knowledge_point import KnowledgePoint
 from app.models.video import Video
 from app.models.quiz import Quiz
-from app.services.ai_service import extract_knowledge_points_from_page
+from app.services.ai_service import extract_knowledge_points_from_page, extract_knowledge_points_from_pages
 from app.auth_utils import require_authenticated, require_teacher
 
 kp_bp = Blueprint("knowledge_points", __name__)
@@ -110,15 +110,19 @@ def _run_extraction(app, slide_id, preferred_video_id=None):
             created_count = 0
             aligned_count = 0
 
-            for idx, page in enumerate(pages_to_process):
-                _write_status(slide_id, {
-                    "state": "running",
-                    "progress": idx,
-                    "total": total,
-                    "message": f"Processing page {page.page_number} ({idx+1}/{total})",
-                })
-
-                kp_data_list = extract_knowledge_points_from_page(page)
+            # Batch extract all knowledge points at once (MUCH faster than per-page extraction)
+            _write_status(slide_id, {
+                "state": "running",
+                "progress": 0,
+                "total": total,
+                "message": f"Extracting knowledge points from {total} page(s)...",
+            })
+            
+            batch_kps = extract_knowledge_points_from_pages(pages_to_process)
+            
+            # Process results for all pages
+            for page_idx, page in enumerate(pages_to_process):
+                kp_data_list = batch_kps.get(page.id, [])
                 for kp_data in kp_data_list:
                     title = kp_data.get("title", "Untitled")[:300]
                     content = kp_data.get("content", "")
@@ -143,8 +147,16 @@ def _run_extraction(app, slide_id, preferred_video_id=None):
                     created_count += 1
                     if timestamp is not None:
                         aligned_count += 1
+                
+                # Update progress
+                _write_status(slide_id, {
+                    "state": "running",
+                    "progress": page_idx + 1,
+                    "total": total,
+                    "message": f"Saving knowledge points from page {page.page_number}...",
+                })
 
-                db.session.commit()
+            db.session.commit()
 
             message = f"Extracted {created_count} knowledge points"
             if created_count > 0 and aligned_count == 0:
@@ -159,7 +171,7 @@ def _run_extraction(app, slide_id, preferred_video_id=None):
                 "aligned": aligned_count,
                 "message": message,
             })
-            logger.info("KP extraction done for slide %s: %d KPs", slide_id, created_count)
+            logger.info("KP extraction done for slide %s: %d KPs from %d pages", slide_id, created_count, total)
 
         except Exception as e:
             logger.exception("KP extraction failed for slide %s", slide_id)

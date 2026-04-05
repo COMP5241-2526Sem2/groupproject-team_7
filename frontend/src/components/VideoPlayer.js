@@ -215,7 +215,7 @@ function VideoPlayer({
     try {
       const res = await getVideosByCourse(courseId);
       setVideos(res.data);
-      setCurrentVideo(pickPrimaryVideo(res.data, preferredVideoId));
+      setCurrentVideo(preferredVideoId ? pickPrimaryVideo(res.data, preferredVideoId) : null);
     } catch {
       // API not available yet
     }

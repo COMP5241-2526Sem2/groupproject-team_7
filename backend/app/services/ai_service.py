@@ -26,7 +26,9 @@ def _chat_model():
 
 
 def _gather_course_context(course_id, max_chars=12000):
-    """Gather slide text for a course as RAG context."""
+    """Gather slide text and knowledge points with video timestamps as RAG context."""
+    from app.models.video import Video
+    
     slides = (
         Slide.query.filter_by(course_id=course_id)
         .order_by(Slide.created_at.asc())
@@ -35,13 +37,30 @@ def _gather_course_context(course_id, max_chars=12000):
     parts = []
     total = 0
 
-    # Slide content
+    # Slide content with associated knowledge points and video timestamps
     for slide in slides:
         for page in sorted(slide.pages, key=lambda p: p.page_number):
             text = (page.content_text or "").strip()
             if not text:
                 continue
+            
+            # Get knowledge points for this page with video timestamp info
+            kps = KnowledgePoint.query.filter_by(slide_page_id=page.id).all()
+            kp_refs = []
+            for kp in kps:
+                if kp.video_timestamp is not None and kp.video_id:
+                    video = db.session.get(Video, kp.video_id)
+                    if video:
+                        # Format: "KnowledgePoint Title [Video: MM:SS]"
+                        minutes = int(kp.video_timestamp) // 60
+                        seconds = int(kp.video_timestamp) % 60
+                        ts_str = f"{minutes:02d}:{seconds:02d}"
+                        kp_refs.append(f"{kp.title} [Video: {ts_str}]")
+            
             entry = f"[{slide.original_filename}, Page {page.page_number}]\n{text}"
+            if kp_refs:
+                entry += f"\nKey concepts: {', '.join(kp_refs)}"
+            
             if total + len(entry) > max_chars * 0.7:
                 parts.append("...(remaining slide content truncated)")
                 break
@@ -73,6 +92,8 @@ def generate_chat_response(course_id, user_message, chat_history):
         "Guidelines:\n"
         "- Provide clear, educational answers based on the materials.\n"
         "- When referencing slide content, cite as [filename, Page X].\n"
+        "- When referencing a concept with a video explanation, include [Video: MM:SS] in your answer.\n"
+        "- For example: 'This concept is explained at [Video: 05:30]' or 'See [filename, Page X] and [Video: 02:15] for more details.'\n"
         "- If a question is outside the course scope, say so politely.\n"
         "- Keep answers concise but thorough.\n"
         "- Use the same language as the student's question."
@@ -103,9 +124,10 @@ def generate_chat_response(course_id, user_message, chat_history):
 
 
 def _parse_citations(text):
-    """Extract [filename, Page X] references from AI response."""
+    """Extract [filename, Page X] and [Video: MM:SS] / [Video: HH:MM:SS] references from AI response."""
     import re
     citations = []
+    
     # Slide citations: [filename, Page X]
     slide_pattern = r'\[([^,\]]+),\s*Page\s*(\d+)\]'
     for match in re.finditer(slide_pattern, text):
@@ -115,6 +137,28 @@ def _parse_citations(text):
             "page": int(match.group(2)),
             "label": f"{match.group(1).strip()}, Page {match.group(2)}",
         })
+    
+    # Video timestamp citations: [Video: MM:SS] or [Video: HH:MM:SS]
+    video_pattern = r'\[Video:\s*(\d{1,2}):(\d{2})(?::(\d{2}))?\]'
+    for match in re.finditer(video_pattern, text):
+        if match.group(3):  # HH:MM:SS format
+            hours = int(match.group(1))
+            minutes = int(match.group(2))
+            seconds = int(match.group(3))
+            timestamp = hours * 3600 + minutes * 60 + seconds
+            label = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        else:  # MM:SS format
+            minutes = int(match.group(1))
+            seconds = int(match.group(2))
+            timestamp = minutes * 60 + seconds
+            label = f"{minutes:02d}:{seconds:02d}"
+        
+        citations.append({
+            "type": "video",
+            "timestamp": timestamp,
+            "label": label,
+        })
+    
     return citations
 
 
@@ -166,6 +210,81 @@ def extract_knowledge_points_from_page(slide_page):
     except Exception as e:
         logger.error("OpenAI KP extraction error: %s", e)
         return _fallback_extract_kp(text)
+
+
+def extract_knowledge_points_from_pages(slide_pages):
+    """Batch extract knowledge points from multiple pages (MUCH FASTER).
+    
+    Args:
+        slide_pages: List of SlidePage objects
+        
+    Returns:
+        Dict mapping page_id -> list of KP dicts
+    """
+    if not slide_pages:
+        return {}
+    
+    client = _get_client()
+    if client is None:
+        # Fallback: process individually
+        return {page.id: _fallback_extract_kp((page.content_text or "").strip()) 
+                for page in slide_pages}
+    
+    # Prepare batch content - limit to most important content
+    pages_content = []
+    page_id_map = {}  # internal_idx -> page_id
+    
+    for idx, page in enumerate(slide_pages):
+        text = (page.content_text or "").strip()
+        if text:
+            # Aggressive text truncation to speed up API
+            # Take only first 1500 chars to reduce token usage and API time
+            text = text[:1500]
+            pages_content.append({
+                "index": idx,
+                "page_number": page.page_number,
+                "content": text
+            })
+            page_id_map[idx] = page.id
+    
+    if not pages_content:
+        return {page.id: [] for page in slide_pages}
+    
+    # Batch prompt - simplified for speed
+    prompt = (
+        "Extract 3-4 key knowledge points from each slide.\n"
+        "Response format: {\"0\": [{\"title\": \"...\", \"content\": \"...\"}], ...}\n"
+        "Be concise. Return ONLY valid JSON.\n\n"
+    )
+    
+    for item in pages_content:
+        prompt += f"[Page {item['page_number']}]:\n{item['content']}\n\n"
+    
+    try:
+        response = client.chat.completions.create(
+            model=_chat_model(),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,  # Lower temp for consistency
+            max_tokens=1200,  # Reduced from 2000
+        )
+        
+        batch_result = _parse_json_response(response.choices[0].message.content)
+        
+        # Map back to page IDs
+        result = {}
+        for idx, page in enumerate(slide_pages):
+            page_kps = []
+            if isinstance(batch_result, dict):
+                page_kps = batch_result.get(str(idx)) or batch_result.get(idx) or []
+            result[page.id] = page_kps if isinstance(page_kps, list) else []
+        
+        return result
+        
+    except Exception as e:
+        logger.error("OpenAI batch KP extraction error: %s", e)
+        # Fallback to individual processing
+        return {page.id: _fallback_extract_kp((page.content_text or "").strip()) 
+                for page in slide_pages}
 
 
 def _fallback_extract_kp(text):

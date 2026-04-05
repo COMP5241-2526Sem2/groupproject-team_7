@@ -133,12 +133,6 @@ function SlidesPanel({
 
   const linkedVideo = findLinkedVideoForSlide(currentSlide, courseVideos);
 
-  useEffect(() => {
-    if (linkedVideo && onSelectLinkedVideo) {
-      onSelectLinkedVideo(linkedVideo);
-    }
-  }, [linkedVideo?.id, onSelectLinkedVideo]);
-
   const handleUpload = async (file) => {
     if (!courseId) {
       alert('Please create or select a course first.');
@@ -608,10 +602,6 @@ function SlidesPanel({
                     onClick={() => {
                       setCurrentSlide(s);
                       setCurrentPage(0);
-                      const nextLinked = findLinkedVideoForSlide(s, courseVideos);
-                      if (nextLinked && onSelectLinkedVideo) {
-                        onSelectLinkedVideo(nextLinked);
-                      }
                     }}
                   >
                     <span className="min-w-0 flex-1 truncate">{s.original_filename}</span>
