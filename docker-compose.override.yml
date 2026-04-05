@@ -1,0 +1,7 @@
+services:
+  app:
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+      - whisper_models:/app/whisper_models
+    command: gunicorn --reload --bind 0.0.0.0:5000 --workers 1 --timeout 1800 --log-level info --access-logfile - --error-logfile - run:app

@@ -1,32 +1,21 @@
-# clean the cache of whisper models
-RUN rm -rf ./whisper_models
-
-# Stage 1: Build frontend
-FROM node:18-alpine AS frontend-build
-
-WORKDIR /frontend
-
-# Copy package files
-COPY frontend/package.json frontend/package-lock.json ./
-
-# Install dependencies
-RUN npm install --legacy-peer-deps
-
-# Copy frontend source
-COPY frontend/ .
-
-# Build the React application
-RUN npm run build
-
-# Stage 2: Backend + serve frontend static files
-FROM m.daocloud.io/docker.io/library/python:3.11-slim
+# Backend only (Frontend is in separate Docker service)
+FROM m.daocloud.io/docker.io/library/python:3.11-slim-bookworm
 
 WORKDIR /app
 
 # Install minimal system dependencies
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list.d/debian.sources ]; then \
+      sed -i 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g; s|http://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list.d/debian.sources; \
+    fi; \
+    if [ -f /etc/apt/sources.list ]; then \
+      sed -i 's|http://deb.debian.org/debian|https://mirrors.aliyun.com/debian|g; s|http://deb.debian.org/debian-security|https://mirrors.aliyun.com/debian-security|g' /etc/apt/sources.list; \
+    fi; \
+    printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\n' > /etc/apt/apt.conf.d/80-retries
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      libpq-dev && \
+      libpq-dev \
+      curl && \
     rm -rf /var/lib/apt/lists/*
 
 # Install only essential FFmpeg (without encoding libraries)
@@ -48,33 +37,20 @@ RUN apt-get update && \
 
 # Copy and install Python dependencies
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Pre-download the faster-whisper models so they're cached in the image
-# (avoids lengthy download at runtime on Railway)
-RUN python - <<'PY'
-from faster_whisper import WhisperModel
-
-for model_size in ['tiny', 'base']:
-  try:
-    print(f'Preloading {model_size} model...')
-    WhisperModel(model_size, device='cpu', compute_type='int8')
-    print(f'Preloaded {model_size} model successfully')
-  except Exception as exc:
-    # Do not fail image build when external model registry is temporarily unavailable.
-    print(f'WARNING: skipping {model_size} model pre-download due to: {exc}')
-PY
+RUN pip install --no-cache-dir \
+  --index-url https://pypi.tuna.tsinghua.edu.cn/simple \
+  --trusted-host pypi.tuna.tsinghua.edu.cn \
+  --retries 10 \
+  --timeout 120 \
+  -r requirements.txt
 
 # Copy backend application code
 COPY backend/ .
 
-# Copy built frontend static files from stage 1
-COPY --from=frontend-build /frontend/build ./static_frontend
-
-# Create necessary upload directories
-RUN mkdir -p uploads/slides/thumbnails uploads/videos
+RUN mkdir -p uploads/slides/thumbnails uploads/videos whisper_models
 
 EXPOSE 5000
 
-ENV PORT=${PORT:-5000}
-CMD gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 1800 --log-level info --access-logfile - --error-logfile - run:app
+ENV PORT=5000
+ENV FASTER_WHISPER_CACHE_DIR=/app/whisper_models
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT} --workers 1 --timeout 1800 --log-level info --access-logfile - --error-logfile - run:app"]

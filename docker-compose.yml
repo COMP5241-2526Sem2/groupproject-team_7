@@ -30,14 +30,13 @@ services:
       SECRET_KEY: change-this-in-production
       FLASK_ENV: production
       UPLOAD_FOLDER: /app/uploads
+      FASTER_WHISPER_CACHE_DIR: /app/whisper_models
       PORT: "5000"
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      OPENAI_CHAT_MODEL: ${OPENAI_CHAT_MODEL:-gpt-4o-mini}
-      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      TRANSCRIBE_USE_LOCAL_ONLY: "false"
       NO_PROXY: localhost,127.0.0.1,db
     volumes:
       - uploads:/app/uploads
+      - whisper_models:/app/whisper_models
     ports:
       - "5000:5000"
     networks:
@@ -76,6 +75,7 @@ services:
 volumes:
   pgdata:
   uploads:
+  whisper_models:
 
 networks:
   synclearn-network:
