@@ -74,6 +74,7 @@ function QuizPanel({ courseId, onJumpToTimestamp }) {
           is_correct: res.data.is_correct,
           correct_answer: res.data.correct_answer,
           explanation: res.data.explanation,
+          video_timestamp: res.data.video_timestamp,
         },
       }));
     } catch (err) {
@@ -163,6 +164,7 @@ function QuizPanel({ courseId, onJumpToTimestamp }) {
           quizzes.map((quiz, idx) => {
             const result = results[quiz.id];
             const selected = answers[quiz.id];
+            const videoTimestamp = result?.video_timestamp ?? quiz.video_timestamp;
             return (
               <div
                 key={quiz.id}
@@ -224,18 +226,30 @@ function QuizPanel({ courseId, onJumpToTimestamp }) {
                         : `Incorrect - Correct option: ${result.correct_answer}`}
                     </p>
                     {result.explanation && (
-                      <p className="text-stone-600">{result.explanation}</p>
+                      <p className="text-stone-600">
+                        {result.explanation}
+                        {videoTimestamp != null && onJumpToTimestamp && (
+                          <button
+                            type="button"
+                            onClick={() => onJumpToTimestamp(videoTimestamp)}
+                            className="ml-1 inline-flex items-center text-[11px] font-medium text-red-800 underline-offset-2 hover:underline"
+                            aria-label="Jump to key frame"
+                          >
+                            {Math.floor(videoTimestamp / 60)}:
+                            {String(Math.floor(videoTimestamp % 60)).padStart(2, '0')}
+                          </button>
+                        )}
+                      </p>
                     )}
-                    {!result.is_correct && quiz.video_timestamp != null && onJumpToTimestamp && (
+                    {!result.explanation && videoTimestamp != null && onJumpToTimestamp && (
                       <button
                         type="button"
-                        onClick={() => onJumpToTimestamp(quiz.video_timestamp)}
-                        className="text-[11px] text-red-800 underline-offset-2 hover:underline"
+                        onClick={() => onJumpToTimestamp(videoTimestamp)}
+                        className="text-[11px] font-medium text-red-800 underline-offset-2 hover:underline"
+                        aria-label="Jump to key frame"
                       >
-                        Review in video (
-                        {Math.floor(quiz.video_timestamp / 60)}:
-                        {String(Math.floor(quiz.video_timestamp % 60)).padStart(2, '0')}
-                        )
+                        {Math.floor(videoTimestamp / 60)}:
+                        {String(Math.floor(videoTimestamp % 60)).padStart(2, '0')}
                       </button>
                     )}
                   </div>

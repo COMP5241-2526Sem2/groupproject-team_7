@@ -2,10 +2,20 @@ from flask import Blueprint, request, jsonify
 from app import db
 from app.models.quiz import Quiz, QuizAttempt
 from app.models.course import Course
+from app.models.knowledge_point import KnowledgePoint
 from app.auth_utils import require_teacher, require_authenticated, get_request_role, get_request_student_id
 from app.services.ai_service import generate_quizzes_for_course
 
 quizzes_bp = Blueprint("quizzes", __name__)
+
+
+def _quiz_to_dict(quiz):
+    data = quiz.to_dict()
+    if data.get("video_timestamp") is None and quiz.knowledge_point_id:
+        kp = db.session.get(KnowledgePoint, quiz.knowledge_point_id)
+        if kp and kp.video_timestamp is not None:
+            data["video_timestamp"] = kp.video_timestamp
+    return data
 
 
 @quizzes_bp.route("/generate/<int:course_id>", methods=["POST"])
@@ -47,7 +57,7 @@ def generate_quizzes(course_id):
     db.session.commit()
     return jsonify({
         "message": f"Generated {len(created)} quiz questions",
-        "quizzes": [q.to_dict() for q in created],
+        "quizzes": [_quiz_to_dict(q) for q in created],
     }), 201
 
 
@@ -59,7 +69,7 @@ def get_quizzes(course_id):
         .order_by(Quiz.created_at.desc())
         .all()
     )
-    return jsonify([q.to_dict() for q in quizzes])
+    return jsonify([_quiz_to_dict(q) for q in quizzes])
 
 
 @quizzes_bp.route("/<int:quiz_id>/attempt", methods=["POST"])
@@ -92,6 +102,7 @@ def submit_attempt(quiz_id):
         "is_correct": is_correct,
         "correct_answer": quiz.correct_answer,
         "explanation": quiz.explanation,
+        "video_timestamp": quiz.video_timestamp,
     }), 201
 
 
@@ -148,7 +159,7 @@ def quiz_stats(course_id):
             "quiz_id": q.id,
             "question": q.question,
             "knowledge_point_id": q.knowledge_point_id,
-            "video_timestamp": q.video_timestamp,
+            "video_timestamp": _quiz_to_dict(q).get("video_timestamp"),
             "attempts": len(attempts),
             "correct": correct,
             "error_rate": error_rate,

@@ -332,6 +332,12 @@ def generate_quizzes_for_course(course_id, num_questions=5):
     if client is None:
         return _fallback_generate_quiz(context, num_questions, kp_list)
 
+    def _normalize_kp_id(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
     # Build KP reference for the prompt
     kp_ref = ""
     if kp_list:
@@ -362,15 +368,21 @@ def generate_quizzes_for_course(course_id, num_questions=5):
         )
         results = _parse_json_response(response.choices[0].message.content)
 
-        # Attach video timestamps from linked KPs
+        # Attach video timestamps from linked KPs.
+        # If the model omits or returns an invalid knowledge_point_id, fall back
+        # to a known KP so every generated quiz can still jump to a key frame.
         kp_map = {kp["id"]: kp for kp in kp_list}
-        for item in results:
-            kp_id = item.get("knowledge_point_id")
-            if kp_id and kp_id in kp_map:
-                item["video_timestamp"] = kp_map[kp_id].get("video_timestamp")
-            else:
-                item["knowledge_point_id"] = None
-                item["video_timestamp"] = None
+        for index, item in enumerate(results):
+            kp_id = _normalize_kp_id(item.get("knowledge_point_id"))
+            linked_kp = kp_map.get(kp_id)
+
+            if linked_kp is None and kp_list:
+                linked_kp = kp_list[index % len(kp_list)]
+                item["knowledge_point_id"] = linked_kp["id"]
+            elif linked_kp is not None:
+                item["knowledge_point_id"] = linked_kp["id"]
+
+            item["video_timestamp"] = linked_kp.get("video_timestamp") if linked_kp else None
 
         return results
     except Exception as e:
