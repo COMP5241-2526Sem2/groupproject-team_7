@@ -1,12 +1,13 @@
-# Build frontend assets
-FROM m.daocloud.io/docker.io/library/node:20-bookworm-slim AS frontend-builder
+# Stage 1: Build frontend
+FROM node:18-alpine AS frontend-build
 
 WORKDIR /frontend
 
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+# Install dependencies using npm ci for reproducible builds
+RUN npm ci --legacy-peer-deps --prefer-offline --no-audit
 
-COPY frontend/ ./
+COPY frontend/ .
 RUN npm run build
 
 # Backend runtime image (includes built frontend)
@@ -58,8 +59,8 @@ RUN pip install --no-cache-dir \
 # Copy backend application code
 COPY backend/ .
 
-# Copy built React app for Flask to serve as static frontend
-COPY --from=frontend-builder /frontend/build/ /app/static_frontend/
+# Copy built frontend static files from stage 1
+COPY --from=frontend-build /frontend/build ./static_frontend
 
 RUN mkdir -p uploads/slides/thumbnails uploads/videos whisper_models
 
