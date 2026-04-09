@@ -1,4 +1,15 @@
-# Backend only (Frontend is in separate Docker service)
+# Build frontend assets
+FROM m.daocloud.io/docker.io/library/node:20-bookworm-slim AS frontend-builder
+
+WORKDIR /frontend
+
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci --no-audit --no-fund
+
+COPY frontend/ ./
+RUN npm run build
+
+# Backend runtime image (includes built frontend)
 FROM m.daocloud.io/docker.io/library/python:3.11-slim-bookworm
 
 WORKDIR /app
@@ -46,6 +57,9 @@ RUN pip install --no-cache-dir \
 
 # Copy backend application code
 COPY backend/ .
+
+# Copy built React app for Flask to serve as static frontend
+COPY --from=frontend-builder /frontend/build/ /app/static_frontend/
 
 RUN mkdir -p uploads/slides/thumbnails uploads/videos whisper_models
 
