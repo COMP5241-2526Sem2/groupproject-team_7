@@ -198,13 +198,13 @@ function SlidesPanel({
         if (res.data?.state === 'running') {
           setExtracting(true);
           setExtractStatus(res.data.message || 'Extracting...');
-          startPolling(currentSlide.id);
+          startPolling(currentSlide.id, false);
         }
       })
       .catch(() => {});
   }, [currentSlide?.id]);
 
-  const startPolling = (slideId) => {
+  const startPolling = (slideId, force = false) => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
       try {
@@ -224,7 +224,7 @@ function SlidesPanel({
               prev.map((s) => (s.id === slideRes.data.id ? slideRes.data : s))
             );
           } catch {}
-          if (st.created === 0) {
+          if (st.created === 0 && !force) {
             const shouldForce = window.confirm(
               'Knowledge points already exist for all pages. Re-extract and overwrite existing knowledge points?'
             );
@@ -257,7 +257,7 @@ function SlidesPanel({
     try {
       const preferredVideoId = linkedVideo?.id ?? null;
       await extractKnowledgePoints(currentSlide.id, force, preferredVideoId);
-      startPolling(currentSlide.id);
+      startPolling(currentSlide.id, force);
     } catch (err) {
       console.error('KP extraction failed:', err);
       alert('Knowledge point extraction failed: ' + (err.response?.data?.error || err.message));

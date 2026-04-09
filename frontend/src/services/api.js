@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // 前端运行在浏览器中，localhost 总是指向宿主机
 // Docker 或本地都使用同一个 localhost:5000 地址
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 const api = axios.create({
   baseURL: API_BASE,
