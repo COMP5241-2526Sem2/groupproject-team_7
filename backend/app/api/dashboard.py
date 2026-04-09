@@ -1,10 +1,11 @@
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, current_app
 from app import db
 from app.models.course import Course
 from app.models.quiz import Quiz, QuizAttempt
 from app.models.knowledge_point import KnowledgePoint
 from app.models.slide import Slide
 from app.models.chat import ChatMessage
+from app.auth_utils import require_teacher
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -12,6 +13,10 @@ dashboard_bp = Blueprint("dashboard", __name__)
 @dashboard_bp.route("/summary/<int:course_id>", methods=["GET"])
 def course_summary(course_id):
     """Get overall course statistics for the teacher dashboard."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     course = db.session.get(Course, course_id)
     if not course:
         return jsonify({"error": "Course not found"}), 404
@@ -57,6 +62,10 @@ def course_summary(course_id):
 @dashboard_bp.route("/difficulty/<int:course_id>", methods=["GET"])
 def difficulty_analysis(course_id):
     """Get top difficult knowledge points based on quiz error rates."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     quizzes = Quiz.query.filter_by(course_id=course_id).all()
     if not quizzes:
         return jsonify({"difficulties": []})
@@ -118,35 +127,106 @@ def difficulty_analysis(course_id):
 
 @dashboard_bp.route("/chat-insights/<int:course_id>", methods=["GET"])
 def chat_insights(course_id):
-    """Analyze student chat questions to identify common topics and concerns."""
+    """Analyze student chat questions to identify high-frequency topics and concerns."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
+    # Get ALL student questions (not just recent)
     messages = (
         ChatMessage.query
         .filter_by(course_id=course_id, role="user")
-        .order_by(ChatMessage.created_at.desc())
-        .limit(100)
         .all()
     )
 
     if not messages:
-        return jsonify({"total_questions": 0, "recent_questions": []})
+        return jsonify({
+            "total_questions": 0,
+            "valid_questions": 0,
+            "filtered_out": 0,
+            "high_frequency_questions": [],
+            "question_stats": {}
+        })
 
-    recent = [
-        {
-            "content": m.content[:200],
-            "created_at": m.created_at.isoformat() if m.created_at else None,
-        }
-        for m in messages[:20]
-    ]
+    # Filter: Remove meaningless/trivial questions
+    # (single words, greetings, very short messages)
+    meaningless_keywords = {"hi", "hello", "ok", "thanks", "yes", "no", "ok", "yeah", "fine"}
+    valid_messages = []
+    
+    for m in messages:
+        content = m.content.strip().lower()
+        # Skip if too short (< 4 characters)
+        if len(content) < 4:
+            continue
+        # Skip if it's a single meaningless word
+        if content in meaningless_keywords:
+            continue
+        # Skip if it's just punctuation or numbers
+        if not any(c.isalpha() for c in content):
+            continue
+        valid_messages.append(m)
+    
+    filtered_out_count = len(messages) - len(valid_messages)
+
+    # Frequency analysis: Count similar/duplicate questions
+    # Normalize questions for comparison (lowercase, strip whitespace)
+    question_frequency = {}  # normalized -> {count, original_examples, first_asked}
+    
+    for m in valid_messages:
+        content = m.content.strip()
+        normalized = content.lower()
+        
+        if normalized not in question_frequency:
+            question_frequency[normalized] = {
+                "count": 0,
+                "examples": [],
+                "first_asked": m.created_at.isoformat() if m.created_at else None,
+            }
+        
+        question_frequency[normalized]["count"] += 1
+        # Keep max 3 examples of each question
+        if len(question_frequency[normalized]["examples"]) < 3:
+            question_frequency[normalized]["examples"].append(content[:200])
+
+    # Sort by frequency (descending)
+    sorted_questions = sorted(
+        question_frequency.items(),
+        key=lambda x: x[1]["count"],
+        reverse=True
+    )
+
+    # Get top 15 high-frequency questions
+    high_frequency = []
+    for normalized, data in sorted_questions[:15]:
+        high_frequency.append({
+            "question": data["examples"][0],  # Primary example
+            "frequency": data["count"],
+            "first_asked": data["first_asked"],
+            "examples": data["examples"],  # Show variations if any
+        })
+
+    # Calculate statistics
+    question_stats = {
+        "most_common_frequency": high_frequency[0]["frequency"] if high_frequency else 0,
+        "unique_question_topics": len(question_frequency),
+    }
 
     return jsonify({
         "total_questions": len(messages),
-        "recent_questions": recent,
+        "valid_questions": len(valid_messages),
+        "filtered_out": filtered_out_count,
+        "high_frequency_questions": high_frequency,
+        "question_stats": question_stats,
     })
 
 
 @dashboard_bp.route("/review-brief/<int:course_id>", methods=["POST"])
 def generate_review_brief(course_id):
     """Generate an AI-powered review brief summarizing learning gaps."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     course = db.session.get(Course, course_id)
     if not course:
         return jsonify({"error": "Course not found"}), 404
@@ -222,4 +302,7 @@ def generate_review_brief(course_id):
         brief = response.choices[0].message.content
         return jsonify({"brief": brief})
     except Exception as e:
-        return jsonify({"error": f"Failed to generate brief: {e}"}), 500
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Review brief generation failed: {type(e).__name__}: {e}")
+        return jsonify({"error": f"Failed to generate brief: {type(e).__name__}"}), 500

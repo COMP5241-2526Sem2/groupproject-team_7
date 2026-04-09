@@ -7,8 +7,9 @@ from app import db
 from app.models.slide import Slide, SlidePage
 from app.models.knowledge_point import KnowledgePoint
 from app.models.video import Video
-from app.models.video_transcript import VideoTranscript
-from app.services.ai_service import extract_knowledge_points_from_page
+from app.models.quiz import Quiz
+from app.services.ai_service import extract_knowledge_points_from_page, extract_knowledge_points_from_pages
+from app.auth_utils import require_authenticated, require_teacher
 
 kp_bp = Blueprint("knowledge_points", __name__)
 logger = logging.getLogger(__name__)
@@ -19,9 +20,15 @@ _STATUS_DIR = None
 def _get_status_dir():
     global _STATUS_DIR
     if _STATUS_DIR is None:
-        _STATUS_DIR = os.path.join(
-            os.environ.get("UPLOAD_FOLDER", "/app/uploads"), "videos"
-        )
+        try:
+            upload_root = current_app.config.get("UPLOAD_FOLDER")
+        except RuntimeError:
+            upload_root = None
+
+        if not upload_root:
+            upload_root = os.path.abspath(os.environ.get("UPLOAD_FOLDER", "uploads"))
+
+        _STATUS_DIR = os.path.join(upload_root, "videos")
         os.makedirs(_STATUS_DIR, exist_ok=True)
     return _STATUS_DIR
 
@@ -49,7 +56,32 @@ def _read_status(slide_id):
         return None
 
 
-def _run_extraction(app, slide_id):
+def _select_alignment_video(slide, preferred_video_id=None):
+    # Try to use preferred video if it has duration
+    if preferred_video_id is not None:
+        preferred = db.session.get(Video, preferred_video_id)
+        if preferred and preferred.course_id == slide.course_id and preferred.duration and preferred.duration > 0:
+            return preferred
+
+    # Get all videos for the course, sorted by creation date (newest first)
+    videos = (
+        Video.query.filter_by(course_id=slide.course_id)
+        .order_by(Video.created_at.desc())
+        .all()
+    )
+    if not videos:
+        return None
+    
+    # Prefer videos with duration > 0 (local uploads usually have duration, external links often don't)
+    for video in videos:
+        if video.duration and video.duration > 0:
+            return video
+
+    # If no video has duration, return the latest one anyway (it might succeed if duration is available)
+    return videos[0]
+
+
+def _run_extraction(app, slide_id, preferred_video_id=None):
     """Background worker for KP extraction."""
     with app.app_context():
         try:
@@ -58,21 +90,8 @@ def _run_extraction(app, slide_id):
                 _write_status(slide_id, {"state": "error", "error": "Slide not found"})
                 return
 
-            video = (
-                Video.query.filter_by(course_id=slide.course_id)
-                .order_by(Video.created_at.asc())
-                .first()
-            )
+            video = _select_alignment_video(slide, preferred_video_id=preferred_video_id)
             total_pages = max(slide.total_pages or len(slide.pages), 1)
-
-            has_transcripts = False
-            if video:
-                has_transcripts = (
-                    VideoTranscript.query
-                    .filter_by(video_id=video.id)
-                    .filter(VideoTranscript.embedding.isnot(None))
-                    .count() > 0
-                )
 
             pages_to_process = []
             for page in sorted(slide.pages, key=lambda p: p.page_number):
@@ -89,29 +108,27 @@ def _run_extraction(app, slide_id):
 
             total = len(pages_to_process)
             created_count = 0
+            aligned_count = 0
 
-            for idx, page in enumerate(pages_to_process):
-                _write_status(slide_id, {
-                    "state": "running",
-                    "progress": idx,
-                    "total": total,
-                    "message": f"Processing page {page.page_number} ({idx+1}/{total})",
-                })
-
-                kp_data_list = extract_knowledge_points_from_page(page)
+            # Batch extract all knowledge points at once (MUCH faster than per-page extraction)
+            _write_status(slide_id, {
+                "state": "running",
+                "progress": 0,
+                "total": total,
+                "message": f"Extracting knowledge points from {total} page(s)...",
+            })
+            
+            batch_kps = extract_knowledge_points_from_pages(pages_to_process)
+            
+            # Process results for all pages
+            for page_idx, page in enumerate(pages_to_process):
+                kp_data_list = batch_kps.get(page.id, [])
                 for kp_data in kp_data_list:
                     title = kp_data.get("title", "Untitled")[:300]
                     content = kp_data.get("content", "")
 
                     timestamp = None
                     confidence = 0.0
-                    if has_transcripts and video:
-                        try:
-                            from app.services.alignment_service import align_knowledge_point
-                            kp_text = f"{title}. {content}"
-                            timestamp, confidence = align_knowledge_point(kp_text, video.id)
-                        except Exception:
-                            pass
 
                     if timestamp is None and video and video.duration and video.duration > 0:
                         fraction = (page.page_number - 1) / total_pages
@@ -128,15 +145,33 @@ def _run_extraction(app, slide_id):
                     )
                     db.session.add(kp)
                     created_count += 1
+                    if timestamp is not None:
+                        aligned_count += 1
+                
+                # Update progress
+                _write_status(slide_id, {
+                    "state": "running",
+                    "progress": page_idx + 1,
+                    "total": total,
+                    "message": f"Saving knowledge points from page {page.page_number}...",
+                })
 
-                db.session.commit()
+            db.session.commit()
+
+            message = f"Extracted {created_count} knowledge points"
+            if created_count > 0 and aligned_count == 0:
+                if not video:
+                    message += " (no course video found; upload a video to enable timestamp alignment)"
+                else:
+                    message += " (no video-aligned timestamps; ensure the selected video has duration metadata)"
 
             _write_status(slide_id, {
                 "state": "done",
                 "created": created_count,
-                "message": f"Extracted {created_count} knowledge points",
+                "aligned": aligned_count,
+                "message": message,
             })
-            logger.info("KP extraction done for slide %s: %d KPs", slide_id, created_count)
+            logger.info("KP extraction done for slide %s: %d KPs from %d pages", slide_id, created_count, total)
 
         except Exception as e:
             logger.exception("KP extraction failed for slide %s", slide_id)
@@ -146,19 +181,58 @@ def _run_extraction(app, slide_id):
 @kp_bp.route("/extract/<int:slide_id>", methods=["POST"])
 def extract_for_slide(slide_id):
     """Start async KP extraction for a slide."""
+    forbidden = require_authenticated()
+    if forbidden:
+        return forbidden
+
     slide = db.session.get(Slide, slide_id)
     if not slide:
         return jsonify({"error": "Slide not found"}), 404
+
+    force = request.args.get("force", "0").lower() in ("1", "true", "yes")
+    preferred_video_id = request.args.get("video_id", type=int)
+
+    if preferred_video_id is not None:
+        preferred_video = db.session.get(Video, preferred_video_id)
+        if not preferred_video:
+            return jsonify({"error": "Preferred video not found"}), 404
+        if preferred_video.course_id != slide.course_id:
+            return jsonify({"error": "Preferred video does not belong to this course"}), 400
 
     # Check if already running
     status = _read_status(slide_id)
     if status and status.get("state") == "running":
         return jsonify({"message": "Extraction already in progress", "status": status}), 202
 
+    if force:
+        page_ids = [p.id for p in slide.pages]
+        if page_ids:
+            # Get KnowledgePoint IDs that need to be deleted
+            kp_ids = [
+                kp.id for kp in KnowledgePoint.query
+                .filter(KnowledgePoint.slide_page_id.in_(page_ids))
+                .all()
+            ]
+            
+            if kp_ids:
+                # First delete associated quizzes
+                Quiz.query.filter(Quiz.knowledge_point_id.in_(kp_ids)).delete(
+                    synchronize_session=False
+                )
+                # Then delete knowledge points
+                KnowledgePoint.query.filter(KnowledgePoint.id.in_(kp_ids)).delete(
+                    synchronize_session=False
+                )
+                db.session.commit()
+
     _write_status(slide_id, {"state": "running", "progress": 0, "total": 0, "message": "Starting..."})
 
     app = current_app._get_current_object()
-    t = threading.Thread(target=_run_extraction, args=(app, slide_id), daemon=True)
+    t = threading.Thread(
+        target=_run_extraction,
+        args=(app, slide_id, preferred_video_id),
+        daemon=True,
+    )
     t.start()
 
     return jsonify({"message": "KP extraction started", "status": {"state": "running"}}), 202
@@ -175,7 +249,11 @@ def extract_status(slide_id):
 
 @kp_bp.route("/align/<int:course_id>", methods=["POST"])
 def realign_course(course_id):
-    """Re-align all knowledge points for a course using semantic matching."""
+    """Re-align all knowledge points for a course using video duration."""
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     from app.services.alignment_service import align_all_knowledge_points
     result = align_all_knowledge_points(course_id)
     if isinstance(result, dict) and "error" in result:
@@ -211,6 +289,10 @@ def get_by_page(page_id):
 
 @kp_bp.route("/<int:kp_id>", methods=["DELETE"])
 def delete_kp(kp_id):
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     kp = db.session.get(KnowledgePoint, kp_id)
     if not kp:
         return jsonify({"error": "Knowledge point not found"}), 404

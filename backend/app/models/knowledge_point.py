@@ -6,8 +6,8 @@ class KnowledgePoint(db.Model):
     __tablename__ = "knowledge_points"
 
     id = db.Column(db.Integer, primary_key=True)
-    slide_page_id = db.Column(db.Integer, db.ForeignKey("slide_pages.id"), nullable=False)
-    video_id = db.Column(db.Integer, db.ForeignKey("videos.id"), nullable=True)
+    slide_page_id = db.Column(db.Integer, db.ForeignKey("slide_pages.id", ondelete="CASCADE"), nullable=False)
+    video_id = db.Column(db.Integer, db.ForeignKey("videos.id", ondelete="CASCADE"), nullable=True)
     title = db.Column(db.String(300), nullable=False)
     content = db.Column(db.Text, default="")
     video_timestamp = db.Column(db.Float, nullable=True)  # seconds into video

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import '../styles/CourseSelector.css';
+import { BookOpen } from 'lucide-react';
 
-function CourseSelector({ courses, currentCourse, onSelect, onCreate }) {
+function CourseSelector({ courses, currentCourse, onSelect, onCreate, allowCreate = true }) {
   const [showCreate, setShowCreate] = useState(false);
   const [newTitle, setNewTitle] = useState('');
 
@@ -14,45 +14,63 @@ function CourseSelector({ courses, currentCourse, onSelect, onCreate }) {
   };
 
   return (
-    <div className="course-selector">
-      <label className="cs-label">Course:</label>
+    <div className="flex flex-wrap items-center gap-3">
+      <div className="flex items-center gap-2 text-stone-500">
+        <BookOpen className="h-4 w-4 text-red-800/90" />
+        <label htmlFor="synclearn-course-select" className="text-xs font-medium">
+          Course
+        </label>
+      </div>
       <select
-        className="cs-select"
+        id="synclearn-course-select"
+        className="sync-input-cmd min-w-[160px] max-w-[240px] cursor-pointer text-xs"
         value={currentCourse?.id || ''}
         onChange={(e) => {
-          const c = courses.find((c) => c.id === Number(e.target.value));
+          const c = courses.find((x) => x.id === Number(e.target.value));
           if (c) onSelect(c);
         }}
       >
-        {courses.length === 0 && <option value="">No courses</option>}
+        {courses.length === 0 && <option value="">No courses yet</option>}
         {courses.map((c) => (
           <option key={c.id} value={c.id}>
             {c.title}
           </option>
         ))}
       </select>
-      {!showCreate ? (
-        <button className="cs-btn" onClick={() => setShowCreate(true)}>
+      {allowCreate && !showCreate ? (
+        <button
+          type="button"
+          onClick={() => setShowCreate(true)}
+          className="rounded-control border border-stone-300/90 bg-[#F5EFE3]/80 px-3 py-1.5 text-xs text-stone-700 transition hover:border-red-800/35 hover:bg-[#EDE4D6]"
+        >
           + New Course
         </button>
-      ) : (
-        <div className="cs-create-form">
+      ) : allowCreate ? (
+        <div className="flex flex-wrap items-center gap-2">
           <input
-            className="cs-input"
+            className="sync-input-cmd w-40 text-xs"
             placeholder="Course title..."
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
             autoFocus
           />
-          <button className="cs-btn cs-btn-confirm" onClick={handleCreate}>
+          <button
+            type="button"
+            onClick={handleCreate}
+            className="rounded-control bg-gradient-to-r from-red-800 to-red-950 px-3 py-1.5 text-xs font-medium text-[#FFFBF7]"
+          >
             Create
           </button>
-          <button className="cs-btn" onClick={() => setShowCreate(false)}>
+          <button
+            type="button"
+            onClick={() => setShowCreate(false)}
+            className="rounded-control border border-stone-300/80 px-3 py-1.5 text-xs text-stone-500 hover:bg-stone-100"
+          >
             Cancel
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

@@ -1,0 +1,11 @@
+.git
+.history
+**/__pycache__
+**/*.pyc
+backend/venv
+frontend/node_modules
+frontend/build
+instance/uploads
+uploads
+whisper_models
+.DS_Store

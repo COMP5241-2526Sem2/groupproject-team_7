@@ -6,6 +6,9 @@ from werkzeug.utils import secure_filename
 from app import db
 from app.models.slide import Slide, SlidePage
 from app.models.course import Course
+from app.models.knowledge_point import KnowledgePoint
+from app.models.quiz import Quiz, QuizAttempt
+from app.auth_utils import require_teacher
 
 slides_bp = Blueprint("slides", __name__)
 logger = logging.getLogger(__name__)
@@ -17,8 +20,17 @@ def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def get_file_extension(filename):
+    _, ext = os.path.splitext(filename)
+    return ext.lstrip(".").lower()
+
+
 @slides_bp.route("/upload", methods=["POST"])
 def upload_slide():
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
@@ -38,7 +50,9 @@ def upload_slide():
         return jsonify({"error": "Course not found"}), 404
 
     original_filename = secure_filename(file.filename)
-    ext = original_filename.rsplit(".", 1)[1].lower()
+    ext = get_file_extension(file.filename)
+    if not ext:
+        return jsonify({"error": "Invalid file name. Please use a .pdf, .ppt, or .pptx file."}), 400
     unique_filename = f"{uuid.uuid4().hex}.{ext}"
     upload_dir = os.path.join(current_app.config["UPLOAD_FOLDER"], "slides")
     file_path = os.path.join(upload_dir, unique_filename)
@@ -228,10 +242,36 @@ def serve_page_image(page_id):
 
 @slides_bp.route("/<int:slide_id>", methods=["DELETE"])
 def delete_slide(slide_id):
+    forbidden = require_teacher()
+    if forbidden:
+        return forbidden
+
     slide = db.session.get(Slide, slide_id)
     if not slide:
         return jsonify({"error": "Slide not found"}), 404
 
+    # Get all slide pages associated with this slide
+    slide_pages = SlidePage.query.filter_by(slide_id=slide_id).all()
+    
+    # 1. Delete QuizAttempts that reference Quizzes related to this slide's knowledge points
+    for page in slide_pages:
+        kps = KnowledgePoint.query.filter_by(slide_page_id=page.id).all()
+        for kp in kps:
+            quizzes = Quiz.query.filter_by(knowledge_point_id=kp.id).all()
+            for quiz in quizzes:
+                QuizAttempt.query.filter_by(quiz_id=quiz.id).delete()
+    
+    # 2. Delete Quizzes
+    for page in slide_pages:
+        kps = KnowledgePoint.query.filter_by(slide_page_id=page.id).all()
+        for kp in kps:
+            Quiz.query.filter_by(knowledge_point_id=kp.id).delete()
+    
+    # 3. Delete KnowledgePoints
+    for page in slide_pages:
+        KnowledgePoint.query.filter_by(slide_page_id=page.id).delete()
+    
+    # 4. Clean up files
     if os.path.exists(slide.file_path):
         os.remove(slide.file_path)
 
@@ -243,6 +283,7 @@ def delete_slide(slide_id):
     if os.path.isdir(thumbs_dir):
         shutil.rmtree(thumbs_dir, ignore_errors=True)
 
+    # 5. Delete Slide (SlidePage will be cascade deleted)
     db.session.delete(slide)
     db.session.commit()
     return jsonify({"message": "Slide deleted"})

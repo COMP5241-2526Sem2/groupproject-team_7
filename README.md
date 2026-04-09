@@ -99,6 +99,7 @@ AI 根据学生的测验数据、提问记录和知识点掌握情况，生成**
 - 字幕段落滚动
 - 从知识点或问答结果直接跳转到指定时间点
 
+
 ### 4. 知识点抽取与语义对齐
 
 系统会根据每页课件文本自动抽取知识点，包括标题、说明、对应页面和视频时间戳。提取出的知识点保存在 KnowledgePoint 表中，并与具体课件页绑定。
@@ -217,6 +218,7 @@ AI 根据学生的测验数据、提问记录和知识点掌握情况，生成**
 | PDF | ✓ PyMuPDF | ✓ 渲染 | ✗ 不支持扫描图像 |
 | PPT | ✓ python-pptx | ✓ LibreOffice 转换 | ✗ 需要 LibreOffice 支持 |
 | PPTX | ✓ python-pptx | ✓ LibreOffice 转换 | ✗ 需要 LibreOffice 支持 |
+
 
 每一页课件最终会保存为一个 SlidePage 记录，其中包含：
 
@@ -402,6 +404,7 @@ npm start
 - 后端 API: `http://localhost:8000`
 
 ---
+
 
 ## 八、结论与实现总结
 
