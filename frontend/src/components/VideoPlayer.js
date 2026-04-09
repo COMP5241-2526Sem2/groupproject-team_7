@@ -308,7 +308,7 @@ function VideoPlayer({
   const canShowTimeline = canPlayDirectly;
 
   useEffect(() => {
-    if (!seekTimestamp || seekTimestamp <= 0) return;
+    if (!seekTimestamp || seekTimestamp < 0) return;
     seekTo(seekTimestamp);
   }, [seekTimestamp, seekSignal, currentVideo?.id]);
 
